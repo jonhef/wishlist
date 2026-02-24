@@ -37,6 +37,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
       entity.HasKey(wishlist => wishlist.Id);
 
       entity.HasIndex(wishlist => new { wishlist.OwnerUserId, wishlist.UpdatedAtUtc, wishlist.Id });
+      entity.HasIndex(wishlist => wishlist.ShareTokenHash)
+        .IsUnique();
 
       entity.Property(wishlist => wishlist.Title)
         .HasColumnName("Name")
@@ -55,6 +57,9 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
       entity.Property(wishlist => wishlist.IsDeleted)
         .HasDefaultValue(false);
 
+      entity.Property(wishlist => wishlist.ShareTokenHash)
+        .HasMaxLength(64);
+
       entity.HasOne(wishlist => wishlist.Theme)
         .WithMany(theme => theme.Wishlists)
         .HasForeignKey(wishlist => wishlist.ThemeId)
@@ -67,14 +72,35 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
 
       entity.HasKey(item => item.Id);
 
-      entity.HasIndex(item => new { item.WishlistId, item.Id });
+      entity.HasIndex(item => new { item.WishlistId, item.UpdatedAtUtc, item.Id });
 
-      entity.Property(item => item.Title)
+      entity.Property(item => item.Name)
         .IsRequired()
-        .HasMaxLength(200);
+        .HasMaxLength(240);
+
+      entity.Property(item => item.Url)
+        .HasMaxLength(2048);
+
+      entity.Property(item => item.PriceAmount)
+        .HasColumnType("decimal(18,2)");
+
+      entity.Property(item => item.PriceCurrency)
+        .HasMaxLength(3);
+
+      entity.Property(item => item.Priority)
+        .IsRequired();
+
+      entity.Property(item => item.Notes)
+        .HasMaxLength(2000);
 
       entity.Property(item => item.CreatedAtUtc)
         .IsRequired();
+
+      entity.Property(item => item.UpdatedAtUtc)
+        .IsRequired();
+
+      entity.Property(item => item.IsDeleted)
+        .HasDefaultValue(false);
 
       entity.HasOne(item => item.Wishlist)
         .WithMany(wishlist => wishlist.Items)

@@ -92,3 +92,44 @@ Rules:
 - `PATCH` with empty payload returns `400`
 - `DELETE` is soft delete (`isDeleted`, `deletedAtUtc`)
 - for `themeId` access mismatch we return `400 Bad Request` (chosen behavior)
+
+## Wishlist Items CRUD
+
+Endpoints:
+
+- `POST /wishlists/{id}/items`
+- `GET /wishlists/{id}/items?cursor=...&limit=...`
+- `PATCH /wishlists/{id}/items/{itemId}`
+- `DELETE /wishlists/{id}/items/{itemId}`
+
+Item fields:
+
+- `name` (required)
+- `url` (optional)
+- `priceAmount` / `priceCurrency` (optional pair)
+- `priority` (`0..5`)
+- `notes` (optional, max 2000)
+
+Rules:
+
+- cannot add/list/update/delete items in foreign wishlist (`403`)
+- item list excludes soft-deleted items
+- URL without scheme is normalized by prepending `https://`
+- `priceCurrency` without `priceAmount` returns `400`
+
+## Wishlist Sharing (public read-only)
+
+Endpoints:
+
+- `POST /wishlists/{id}/share` -> returns `{ publicUrl }`
+- `DELETE /wishlists/{id}/share`
+- `GET /public/wishlists/{token}` (no auth)
+
+Behavior:
+
+- `POST /share` always rotates token (old token becomes invalid)
+- token is generated as random base64url value and only `token_hash` is stored in DB
+- `DELETE /share` disables sharing
+- public response contains only `title`, `description`, `items`
+- disabled/invalid share token returns `404` (not `403`)
+- public endpoint is rate-limited (`60 req/min`)

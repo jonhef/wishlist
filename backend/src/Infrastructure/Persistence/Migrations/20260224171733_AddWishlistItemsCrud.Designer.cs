@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Wishlist.Api.Infrastructure.Persistence;
 
@@ -10,9 +11,11 @@ using Wishlist.Api.Infrastructure.Persistence;
 namespace Wishlist.Api.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260224171733_AddWishlistItemsCrud")]
+    partial class AddWishlistItemsCrud
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.0");
@@ -199,10 +202,6 @@ namespace Wishlist.Api.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("OwnerUserId")
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("ShareTokenHash")
-                        .HasMaxLength(64)
-                        .HasColumnType("TEXT");
-
                     b.Property<Guid?>("ThemeId")
                         .HasColumnType("TEXT");
 
@@ -216,9 +215,6 @@ namespace Wishlist.Api.Infrastructure.Persistence.Migrations
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("ShareTokenHash")
-                        .IsUnique();
 
                     b.HasIndex("ThemeId");
 

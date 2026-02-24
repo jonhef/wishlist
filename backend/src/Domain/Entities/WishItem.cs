@@ -8,7 +8,23 @@ public sealed class WishItem
 
   public WishlistEntity Wishlist { get; set; } = null!;
 
-  public string Title { get; set; } = string.Empty;
+  public string Name { get; set; } = string.Empty;
+
+  public string? Url { get; set; }
+
+  public decimal? PriceAmount { get; set; }
+
+  public string? PriceCurrency { get; set; }
+
+  public int Priority { get; set; }
+
+  public string? Notes { get; set; }
 
   public DateTime CreatedAtUtc { get; set; }
+
+  public DateTime UpdatedAtUtc { get; set; }
+
+  public bool IsDeleted { get; set; }
+
+  public DateTime? DeletedAtUtc { get; set; }
 }

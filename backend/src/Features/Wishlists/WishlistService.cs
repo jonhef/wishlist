@@ -99,7 +99,7 @@ public sealed class WishlistService(AppDbContext dbContext, TimeProvider timePro
     var wishlistIds = page.Select(row => row.Id).ToList();
     var itemsCountMap = await _dbContext.WishItems
       .AsNoTracking()
-      .Where(item => wishlistIds.Contains(item.WishlistId))
+      .Where(item => wishlistIds.Contains(item.WishlistId) && !item.IsDeleted)
       .GroupBy(item => item.WishlistId)
       .Select(group => new { WishlistId = group.Key, Count = group.Count() })
       .ToDictionaryAsync(x => x.WishlistId, x => x.Count, cancellationToken);
@@ -142,7 +142,7 @@ public sealed class WishlistService(AppDbContext dbContext, TimeProvider timePro
 
     var itemsCount = await _dbContext.WishItems
       .AsNoTracking()
-      .CountAsync(item => item.WishlistId == wishlist.Id, cancellationToken);
+      .CountAsync(item => item.WishlistId == wishlist.Id && !item.IsDeleted, cancellationToken);
 
     return WishlistServiceResult<WishlistDto>.Success(ToDto(wishlist, itemsCount));
   }
@@ -204,7 +204,7 @@ public sealed class WishlistService(AppDbContext dbContext, TimeProvider timePro
 
     var itemsCount = await _dbContext.WishItems
       .AsNoTracking()
-      .CountAsync(item => item.WishlistId == wishlist.Id, cancellationToken);
+      .CountAsync(item => item.WishlistId == wishlist.Id && !item.IsDeleted, cancellationToken);
 
     return WishlistServiceResult<WishlistDto>.Success(ToDto(wishlist, itemsCount));
   }

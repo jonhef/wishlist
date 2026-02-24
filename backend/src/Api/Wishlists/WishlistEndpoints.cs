@@ -20,6 +20,8 @@ public static class WishlistEndpoints
     group.MapGet("/{wishlistId:guid}", GetWishlistAsync);
     group.MapPatch("/{wishlistId:guid}", PatchAsync);
     group.MapDelete("/{wishlistId:guid}", DeleteAsync);
+    group.MapWishlistItemCrud();
+    group.MapWishlistShareManagement();
   }
 
   private static async Task<IResult> CreateAsync(

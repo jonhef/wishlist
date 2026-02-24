@@ -26,10 +26,10 @@ public sealed class WishlistServiceTests
 
     dbContext.Wishlists.AddRange(wishlist1, wishlist2, foreignWishlist);
     dbContext.WishItems.AddRange(
-      new WishItem { WishlistId = wishlist1.Id, Title = "A", CreatedAtUtc = DateTime.UtcNow },
-      new WishItem { WishlistId = wishlist1.Id, Title = "B", CreatedAtUtc = DateTime.UtcNow },
-      new WishItem { WishlistId = wishlist2.Id, Title = "C", CreatedAtUtc = DateTime.UtcNow },
-      new WishItem { WishlistId = foreignWishlist.Id, Title = "D", CreatedAtUtc = DateTime.UtcNow });
+      new WishItem { WishlistId = wishlist1.Id, Name = "A", Priority = 1, CreatedAtUtc = DateTime.UtcNow, UpdatedAtUtc = DateTime.UtcNow },
+      new WishItem { WishlistId = wishlist1.Id, Name = "B", Priority = 1, CreatedAtUtc = DateTime.UtcNow, UpdatedAtUtc = DateTime.UtcNow },
+      new WishItem { WishlistId = wishlist2.Id, Name = "C", Priority = 1, CreatedAtUtc = DateTime.UtcNow, UpdatedAtUtc = DateTime.UtcNow },
+      new WishItem { WishlistId = foreignWishlist.Id, Name = "D", Priority = 1, CreatedAtUtc = DateTime.UtcNow, UpdatedAtUtc = DateTime.UtcNow });
 
     await dbContext.SaveChangesAsync();
 

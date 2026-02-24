@@ -24,5 +24,7 @@ public sealed class WishlistEntity
 
   public DateTime? DeletedAtUtc { get; set; }
 
+  public string? ShareTokenHash { get; set; }
+
   public ICollection<WishItem> Items { get; set; } = new List<WishItem>();
 }
