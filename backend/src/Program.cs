@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Wishlist.Api.Domain.Entities;
+using Wishlist.Api.Features.Auth;
 using Wishlist.Api.Infrastructure.Persistence;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -12,10 +13,13 @@ var connectionString = builder.Configuration.GetConnectionString("DefaultConnect
 
 builder.Services.AddDbContext<AppDbContext>(options =>
   options.UseSqlite(connectionString));
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddAuthModule(builder.Configuration);
 
 var app = builder.Build();
 
 await app.ApplyMigrationsIfNeededAsync();
+app.MapAuthEndpoints();
 
 app.MapGet("/health", () => Results.Ok(new
 {

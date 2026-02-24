@@ -6,6 +6,8 @@ namespace Wishlist.Api.Infrastructure.Persistence;
 public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options)
 {
   public DbSet<WishItem> WishItems => Set<WishItem>();
+  public DbSet<AppUser> Users => Set<AppUser>();
+  public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
 
   protected override void OnModelCreating(ModelBuilder modelBuilder)
   {
@@ -21,6 +23,62 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
 
       entity.Property(item => item.CreatedAtUtc)
         .IsRequired();
+    });
+
+    modelBuilder.Entity<AppUser>(entity =>
+    {
+      entity.ToTable("users");
+
+      entity.HasKey(user => user.Id);
+
+      entity.HasIndex(user => user.NormalizedEmail)
+        .IsUnique();
+
+      entity.Property(user => user.Email)
+        .IsRequired()
+        .HasMaxLength(320);
+
+      entity.Property(user => user.NormalizedEmail)
+        .IsRequired()
+        .HasMaxLength(320);
+
+      entity.Property(user => user.PasswordHash)
+        .IsRequired();
+
+      entity.Property(user => user.CreatedAtUtc)
+        .IsRequired();
+    });
+
+    modelBuilder.Entity<RefreshToken>(entity =>
+    {
+      entity.ToTable("refresh_tokens");
+
+      entity.HasKey(token => token.Id);
+
+      entity.HasIndex(token => token.Jti)
+        .IsUnique();
+
+      entity.HasIndex(token => new { token.UserId, token.FamilyId });
+
+      entity.Property(token => token.TokenHash)
+        .IsRequired();
+
+      entity.Property(token => token.CreatedByIp)
+        .HasMaxLength(64);
+
+      entity.Property(token => token.UserAgent)
+        .HasMaxLength(512);
+
+      entity.Property(token => token.CreatedAtUtc)
+        .IsRequired();
+
+      entity.Property(token => token.ExpiresAtUtc)
+        .IsRequired();
+
+      entity.HasOne(token => token.User)
+        .WithMany(user => user.RefreshTokens)
+        .HasForeignKey(token => token.UserId)
+        .OnDelete(DeleteBehavior.Cascade);
     });
   }
 }
