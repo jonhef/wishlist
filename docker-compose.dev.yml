@@ -1,0 +1,27 @@
+services:
+  backend:
+    image: node:20-alpine
+    working_dir: /app
+    command: ["node", "--watch", "backend/src/index.mjs"]
+    environment:
+      HOST: 0.0.0.0
+      PORT: 8080
+    volumes:
+      - .:/app
+    ports:
+      - "18080:8080"
+
+  frontend:
+    image: node:20-alpine
+    working_dir: /app
+    command: ["node", "--watch", "frontend/dev-server.mjs"]
+    environment:
+      HOST: 0.0.0.0
+      PORT: 5173
+      BACKEND_URL: http://backend:8080
+    volumes:
+      - .:/app
+    depends_on:
+      - backend
+    ports:
+      - "5173:5173"

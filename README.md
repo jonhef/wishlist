@@ -15,12 +15,12 @@
 - `infra/` - Docker Compose и infra-файлы
 - `docs/` - документация
 
-## Один шаг после `git clone`
+## Один шаг после `git clone` (из корня)
 
 Prerequisites: `docker` + `docker compose`, `npm`.
 
 ```bash
-npm run up:all
+docker compose up --build
 ```
 
 Сервисы будут доступны по адресам:
@@ -32,7 +32,10 @@ npm run up:all
 
 - Backend run: `npm run backend:run`
 - Frontend dev: `npm run frontend:dev`
-- Up all (docker compose): `npm run up:all`
+- Up all (docker compose): `docker compose up --build`
+- Down all (docker compose): `docker compose down`
+- Up dev compose (watch + bind mount): `docker compose -f docker-compose.dev.yml up`
+- Down dev compose: `docker compose -f docker-compose.dev.yml down`
 
 ## Базовые root scripts
 
@@ -44,5 +47,5 @@ npm run up:all
 ## Остановка контейнеров
 
 ```bash
-npm run down
+docker compose down
 ```

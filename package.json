@@ -7,6 +7,8 @@
     "frontend"
   ],
   "scripts": {
+    "start": "npm run up:all",
+    "stop": "npm run down",
     "backend:run": "npm --workspace backend run run",
     "backend-run": "npm run backend:run",
     "frontend:dev": "npm --workspace frontend run dev",
@@ -15,8 +17,10 @@
     "lint": "npm run lint -ws --if-present",
     "test": "npm run test -ws --if-present",
     "build": "npm run build -ws --if-present",
-    "up:all": "docker compose -f infra/docker-compose.yml up --build",
+    "up:all": "docker compose up --build",
     "up-all": "npm run up:all",
-    "down": "docker compose -f infra/docker-compose.yml down"
+    "down": "docker compose down",
+    "up:dev": "docker compose -f docker-compose.dev.yml up",
+    "down:dev": "docker compose -f docker-compose.dev.yml down"
   }
 }

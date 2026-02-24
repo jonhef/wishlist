@@ -1,4 +1,4 @@
-.PHONY: format lint test build backend-run frontend-dev up-all
+.PHONY: format lint test build backend-run frontend-dev up-all up-dev down-dev start stop
 
 format:
 	npm run format
@@ -19,4 +19,16 @@ frontend-dev:
 	npm run frontend-dev
 
 up-all:
-	npm run up-all
+	docker compose up --build
+
+up-dev:
+	docker compose -f docker-compose.dev.yml up
+
+down-dev:
+	docker compose -f docker-compose.dev.yml down
+
+start:
+	docker compose up --build
+
+stop:
+	docker compose down
