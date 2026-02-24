@@ -1,4 +1,4 @@
-.PHONY: format lint test build backend-run frontend-dev up-all up-dev down-dev start stop
+.PHONY: format lint test build backend-run frontend-dev up-all up-dev down-dev start stop api-dev api-dev-migrate ef-update ef-add
 
 format:
 	npm run format
@@ -32,3 +32,16 @@ start:
 
 stop:
 	docker compose down
+
+api-dev:
+	ASPNETCORE_ENVIRONMENT=Development dotnet run --project backend/src/Wishlist.Api.csproj
+
+api-dev-migrate:
+	ASPNETCORE_ENVIRONMENT=Development APPLY_MIGRATIONS_ON_STARTUP=true dotnet run --project backend/src/Wishlist.Api.csproj
+
+ef-update:
+	dotnet ef database update --project backend/src/Wishlist.Api.csproj --startup-project backend/src/Wishlist.Api.csproj
+
+ef-add:
+	@test -n "$(NAME)" || (echo "Usage: make ef-add NAME=MigrationName" && exit 1)
+	dotnet ef migrations add $(NAME) --project backend/src/Wishlist.Api.csproj --startup-project backend/src/Wishlist.Api.csproj --output-dir Infrastructure/Persistence/Migrations

@@ -9,6 +9,10 @@
   "scripts": {
     "start": "npm run up:all",
     "stop": "npm run down",
+    "api:dev": "ASPNETCORE_ENVIRONMENT=Development dotnet run --project backend/src/Wishlist.Api.csproj",
+    "api:dev:migrate": "ASPNETCORE_ENVIRONMENT=Development APPLY_MIGRATIONS_ON_STARTUP=true dotnet run --project backend/src/Wishlist.Api.csproj",
+    "dotnet:tools": "dotnet tool restore",
+    "ef:update": "dotnet ef database update --project backend/src/Wishlist.Api.csproj --startup-project backend/src/Wishlist.Api.csproj",
     "backend:run": "npm --workspace backend run run",
     "backend-run": "npm run backend:run",
     "frontend:dev": "npm --workspace frontend run dev",

@@ -3,6 +3,8 @@ node_modules/
 
 # Build outputs
 **/dist/
+**/bin/
+**/obj/
 
 # Logs
 *.log
@@ -11,6 +13,9 @@ yarn-debug.log*
 yarn-error.log*
 *.pyc
 __pycache__/
+*.db
+*.db-shm
+*.db-wal
 
 # OS / IDE
 .DS_Store
