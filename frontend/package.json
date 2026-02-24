@@ -1,0 +1,13 @@
+{
+  "name": "frontend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node dev-server.mjs",
+    "format": "node -e \"console.log('frontend format: no-op')\"",
+    "lint": "node --check dev-server.mjs && node --check src/app.js && node --check src/status.mjs && node --check scripts/build.mjs",
+    "test": "node --test src/**/*.test.mjs",
+    "build": "node scripts/build.mjs"
+  }
+}

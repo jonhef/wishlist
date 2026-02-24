@@ -1,0 +1,31 @@
+:root {
+  color-scheme: light;
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+}
+
+body {
+  align-items: center;
+  background: linear-gradient(120deg, #f0f4ff, #d9f0ff);
+  display: flex;
+  justify-content: center;
+  margin: 0;
+  min-height: 100vh;
+}
+
+.card {
+  background: #ffffff;
+  border-radius: 16px;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.08);
+  max-width: 420px;
+  padding: 2rem;
+  width: calc(100% - 2rem);
+}
+
+h1 {
+  margin-top: 0;
+}
+
+#status {
+  color: #1d3557;
+  font-weight: 600;
+}

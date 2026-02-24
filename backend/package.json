@@ -1,0 +1,14 @@
+{
+  "name": "backend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "run": "node src/index.mjs",
+    "dev": "node --watch src/index.mjs",
+    "format": "node -e \"console.log('backend format: no-op')\"",
+    "lint": "node --check src/index.mjs && node --check src/server.mjs",
+    "test": "node --test src/**/*.test.mjs",
+    "build": "mkdir -p dist && cp -R src/* dist/"
+  }
+}

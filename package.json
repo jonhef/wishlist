@@ -1,0 +1,22 @@
+{
+  "name": "wishlist",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
+  "scripts": {
+    "backend:run": "npm --workspace backend run run",
+    "backend-run": "npm run backend:run",
+    "frontend:dev": "npm --workspace frontend run dev",
+    "frontend-dev": "npm run frontend:dev",
+    "format": "npm run format -ws --if-present",
+    "lint": "npm run lint -ws --if-present",
+    "test": "npm run test -ws --if-present",
+    "build": "npm run build -ws --if-present",
+    "up:all": "docker compose -f infra/docker-compose.yml up --build",
+    "up-all": "npm run up:all",
+    "down": "docker compose -f infra/docker-compose.yml down"
+  }
+}
