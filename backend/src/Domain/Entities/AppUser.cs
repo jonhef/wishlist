@@ -13,4 +13,6 @@ public sealed class AppUser
   public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
 
   public ICollection<RefreshToken> RefreshTokens { get; set; } = new List<RefreshToken>();
+
+  public ICollection<WishlistEntity> Wishlists { get; set; } = new List<WishlistEntity>();
 }

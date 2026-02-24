@@ -50,3 +50,22 @@ dotnet ef database update \
 - `POST /auth/logout` with `{ refreshToken }` or refresh cookie
   - revokes current refresh token
   - next refresh with same token fails
+
+## Authorization (OwnerOnly)
+
+- Middleware configured: `UseAuthentication()` + `UseAuthorization()`.
+- Helper for current user id from claims: `Api/Auth/CurrentUserAccessor.cs`.
+- Policy `OwnerOnly`: `Api/Auth/AuthorizationPolicies.cs`.
+- Policy handler: `Api/Auth/OwnerAuthorizationHandler.cs`.
+
+Protected wishlist endpoints:
+
+- `POST /api/wishlists` (token required)
+- `GET /api/wishlists/{wishlistId}` (owner only)
+- `GET /api/wishlists/{wishlistId}/items` (owner only)
+- `POST /api/wishlists/{wishlistId}/items` (owner only)
+
+Expected behavior:
+
+- no token on protected endpoint -> `401 Unauthorized`
+- accessing another user's wishlist/items -> `403 Forbidden`
