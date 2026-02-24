@@ -5,6 +5,7 @@ namespace Wishlist.Api.Infrastructure.Persistence;
 
 public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options)
 {
+  public DbSet<ThemeEntity> Themes => Set<ThemeEntity>();
   public DbSet<WishlistEntity> Wishlists => Set<WishlistEntity>();
   public DbSet<WishItem> WishItems => Set<WishItem>();
   public DbSet<AppUser> Users => Set<AppUser>();
@@ -12,20 +13,52 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
 
   protected override void OnModelCreating(ModelBuilder modelBuilder)
   {
+    modelBuilder.Entity<ThemeEntity>(entity =>
+    {
+      entity.ToTable("themes");
+
+      entity.HasKey(theme => theme.Id);
+
+      entity.HasIndex(theme => new { theme.OwnerUserId, theme.Name })
+        .IsUnique();
+
+      entity.Property(theme => theme.Name)
+        .IsRequired()
+        .HasMaxLength(80);
+
+      entity.Property(theme => theme.CreatedAtUtc)
+        .IsRequired();
+    });
+
     modelBuilder.Entity<WishlistEntity>(entity =>
     {
       entity.ToTable("wishlists");
 
       entity.HasKey(wishlist => wishlist.Id);
 
-      entity.HasIndex(wishlist => new { wishlist.OwnerUserId, wishlist.Name });
+      entity.HasIndex(wishlist => new { wishlist.OwnerUserId, wishlist.UpdatedAtUtc, wishlist.Id });
 
-      entity.Property(wishlist => wishlist.Name)
+      entity.Property(wishlist => wishlist.Title)
+        .HasColumnName("Name")
         .IsRequired()
         .HasMaxLength(120);
 
+      entity.Property(wishlist => wishlist.Description)
+        .HasMaxLength(1000);
+
       entity.Property(wishlist => wishlist.CreatedAtUtc)
         .IsRequired();
+
+      entity.Property(wishlist => wishlist.UpdatedAtUtc)
+        .IsRequired();
+
+      entity.Property(wishlist => wishlist.IsDeleted)
+        .HasDefaultValue(false);
+
+      entity.HasOne(wishlist => wishlist.Theme)
+        .WithMany(theme => theme.Wishlists)
+        .HasForeignKey(wishlist => wishlist.ThemeId)
+        .OnDelete(DeleteBehavior.SetNull);
     });
 
     modelBuilder.Entity<WishItem>(entity =>
@@ -75,6 +108,11 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
       entity.HasMany(user => user.Wishlists)
         .WithOne(wishlist => wishlist.OwnerUser)
         .HasForeignKey(wishlist => wishlist.OwnerUserId)
+        .OnDelete(DeleteBehavior.Cascade);
+
+      entity.HasMany(user => user.Themes)
+        .WithOne(theme => theme.OwnerUser)
+        .HasForeignKey(theme => theme.OwnerUserId)
         .OnDelete(DeleteBehavior.Cascade);
     });
 

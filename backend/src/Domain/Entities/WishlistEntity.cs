@@ -8,9 +8,21 @@ public sealed class WishlistEntity
 
   public AppUser OwnerUser { get; set; } = null!;
 
-  public string Name { get; set; } = string.Empty;
+  public string Title { get; set; } = string.Empty;
+
+  public string? Description { get; set; }
+
+  public Guid? ThemeId { get; set; }
+
+  public ThemeEntity? Theme { get; set; }
 
   public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
+
+  public DateTime UpdatedAtUtc { get; set; } = DateTime.UtcNow;
+
+  public bool IsDeleted { get; set; }
+
+  public DateTime? DeletedAtUtc { get; set; }
 
   public ICollection<WishItem> Items { get; set; } = new List<WishItem>();
 }

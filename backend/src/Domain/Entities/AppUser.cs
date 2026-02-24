@@ -15,4 +15,6 @@ public sealed class AppUser
   public ICollection<RefreshToken> RefreshTokens { get; set; } = new List<RefreshToken>();
 
   public ICollection<WishlistEntity> Wishlists { get; set; } = new List<WishlistEntity>();
+
+  public ICollection<ThemeEntity> Themes { get; set; } = new List<ThemeEntity>();
 }

@@ -60,12 +60,35 @@ dotnet ef database update \
 
 Protected wishlist endpoints:
 
-- `POST /api/wishlists` (token required)
-- `GET /api/wishlists/{wishlistId}` (owner only)
-- `GET /api/wishlists/{wishlistId}/items` (owner only)
-- `POST /api/wishlists/{wishlistId}/items` (owner only)
+- `POST /wishlists` (token required)
+- `GET /wishlists` (owner scope)
+- `GET /wishlists/{wishlistId}` (owner only)
+- `PATCH /wishlists/{wishlistId}` (owner only)
+- `DELETE /wishlists/{wishlistId}` (owner only)
 
 Expected behavior:
 
 - no token on protected endpoint -> `401 Unauthorized`
 - accessing another user's wishlist/items -> `403 Forbidden`
+
+## Wishlist CRUD (private)
+
+Endpoints:
+
+- `POST /wishlists` with `{ title, description?, themeId? }`
+- `GET /wishlists?cursor=...&limit=...`
+- `GET /wishlists/{id}`
+- `PATCH /wishlists/{id}` with `{ title?, description?, themeId? }`
+- `DELETE /wishlists/{id}` (soft delete)
+
+Response model:
+
+- `id`, `title`, `description`, `themeId`, `updatedAt`, `itemsCount`
+
+Rules:
+
+- list returns only current user's wishlists
+- `limit` is capped at `50`
+- `PATCH` with empty payload returns `400`
+- `DELETE` is soft delete (`isDeleted`, `deletedAtUtc`)
+- for `themeId` access mismatch we return `400 Bad Request` (chosen behavior)
