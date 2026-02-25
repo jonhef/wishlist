@@ -1,15 +1,26 @@
 export type ThemeColors = {
-  bg: string;
+  bg0: string;
+  bg1: string;
+  bg2: string;
   text: string;
-  primary: string;
-  secondary: string;
-  muted: string;
+  mutedText: string;
   border: string;
+  primary: string;
+  primaryHover: string;
+  accentNeon: string;
+  secondary: string;
+  danger: string;
+  success: string;
+  warn: string;
+  error: string;
 };
 
 export type ThemeTypography = {
-  fontFamily: string;
-  fontSizeBase: number;
+  fontDisplay: string;
+  fontBody: string;
+  fontMono: string;
+  letterSpacingDisplay: number;
+  displayFontEnabled: boolean;
 };
 
 export type ThemeRadii = {
@@ -18,18 +29,29 @@ export type ThemeRadii = {
   lg: number;
 };
 
-export type ThemeSpacing = {
-  xs: number;
-  sm: number;
-  md: number;
-  lg: number;
+export type ThemeEffects = {
+  glowSm: string;
+  glowMd: string;
+  glowLg: string;
+  glowEnabled: boolean;
+  glowIntensity: number;
+  noiseOpacity: number;
 };
 
 export type ThemeTokens = {
+  schemaVersion: 1;
   colors: ThemeColors;
   typography: ThemeTypography;
   radii: ThemeRadii;
-  spacing: ThemeSpacing;
+  effects: ThemeEffects;
+};
+
+export type ThemeTokensPatch = {
+  schemaVersion?: number;
+  colors?: Partial<ThemeColors>;
+  typography?: Partial<ThemeTypography>;
+  radii?: Partial<ThemeRadii>;
+  effects?: Partial<ThemeEffects>;
 };
 
 export type Theme = {
@@ -37,4 +59,9 @@ export type Theme = {
   name: string;
   tokens: ThemeTokens;
   createdAtUtc: string;
+};
+
+export type ThemePreset = {
+  name: string;
+  tokens: ThemeTokens;
 };

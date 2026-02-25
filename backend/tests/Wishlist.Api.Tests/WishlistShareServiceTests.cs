@@ -1,7 +1,9 @@
+using System.Text.Json;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Wishlist.Api.Domain.Entities;
 using Wishlist.Api.Features.Sharing;
+using Wishlist.Api.Features.Themes;
 using Wishlist.Api.Infrastructure.Persistence;
 
 namespace Wishlist.Api.Tests;
@@ -58,8 +60,54 @@ public sealed class WishlistShareServiceTests
     Assert.NotNull(publicResult.Value);
     Assert.Equal("Share me", publicResult.Value!.Title);
     Assert.Equal("public description", publicResult.Value.Description);
+    Assert.Equal("#0b0610", publicResult.Value.ThemeTokens.Colors.Bg0);
     Assert.Single(publicResult.Value.Items);
     Assert.Equal("Visible", publicResult.Value.Items[0].Name);
+  }
+
+  [Fact]
+  public async Task GetPublicByTokenAsync_CustomTheme_ReturnsThemeWithFallback()
+  {
+    await using var dbContext = CreateDbContext();
+    var service = new WishlistShareService(dbContext);
+
+    var owner = CreateUser("share-owner-theme@example.com");
+    var theme = new ThemeEntity
+    {
+      OwnerUserId = owner.Id,
+      Name = "Custom",
+      TokensJson = JsonSerializer.Serialize(
+        new ThemeTokensPatchDto(
+          1,
+          new ThemeColorsPatchDto("#111111", null, null, "#faf0ff", null, null, "#ffaaee", null, null, null, null, null, null, null),
+          null,
+          null,
+          null),
+        new JsonSerializerOptions(JsonSerializerDefaults.Web)),
+      CreatedAtUtc = DateTime.UtcNow
+    };
+
+    var wishlist = CreateWishlist(owner.Id, "Themed", null);
+    wishlist.ThemeId = theme.Id;
+
+    dbContext.Users.Add(owner);
+    dbContext.Themes.Add(theme);
+    dbContext.Wishlists.Add(wishlist);
+    await dbContext.SaveChangesAsync();
+
+    var rotate = await service.RotateAsync(owner.Id, wishlist.Id, CancellationToken.None);
+    Assert.True(rotate.IsSuccess);
+
+    var publicResult = await service.GetPublicByTokenAsync(
+      rotate.Value!.Token,
+      new PublicWishlistListQuery(null, 50),
+      CancellationToken.None);
+
+    Assert.True(publicResult.IsSuccess);
+    Assert.NotNull(publicResult.Value);
+    Assert.Equal("#111111", publicResult.Value!.ThemeTokens.Colors.Bg0);
+    Assert.Equal("#faf0ff", publicResult.Value.ThemeTokens.Colors.Text);
+    Assert.Equal("#120a1a", publicResult.Value.ThemeTokens.Colors.Bg1);
   }
 
   [Fact]

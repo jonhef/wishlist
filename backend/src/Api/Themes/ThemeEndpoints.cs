@@ -8,9 +8,18 @@ public static class ThemeEndpoints
 {
   public static IEndpointRouteBuilder MapThemeEndpoints(this IEndpointRouteBuilder endpoints)
   {
+    MapDefault(endpoints, "/themes");
     MapCrud(endpoints, "/themes");
+
+    MapDefault(endpoints, "/api/themes");
     MapCrud(endpoints, "/api/themes");
+
     return endpoints;
+  }
+
+  private static void MapDefault(IEndpointRouteBuilder endpoints, string prefix)
+  {
+    endpoints.MapGet($"{prefix}/default", GetDefaultAsync);
   }
 
   private static void MapCrud(IEndpointRouteBuilder endpoints, string prefix)
@@ -21,6 +30,14 @@ public static class ThemeEndpoints
     group.MapGet("/{themeId:guid}", GetAsync);
     group.MapPatch("/{themeId:guid}", PatchAsync);
     group.MapDelete("/{themeId:guid}", DeleteAsync);
+  }
+
+  private static async Task<IResult> GetDefaultAsync(
+    IThemeService themeService,
+    CancellationToken cancellationToken)
+  {
+    var result = await themeService.GetDefaultAsync(cancellationToken);
+    return TypedResults.Ok(result.Value);
   }
 
   private static async Task<IResult> CreateAsync(

@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wishlist.local/schemas/theme-tokens-v1.json",
+  "title": "ThemeTokensPatchV1",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {
+      "type": "integer",
+      "const": 1
+    },
+    "colors": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["bg0", "text"],
+      "properties": {
+        "bg0": { "type": "string", "minLength": 1 },
+        "bg1": { "type": "string", "minLength": 1 },
+        "bg2": { "type": "string", "minLength": 1 },
+        "text": { "type": "string", "minLength": 1 },
+        "mutedText": { "type": "string", "minLength": 1 },
+        "border": { "type": "string", "minLength": 1 },
+        "primary": { "type": "string", "minLength": 1 },
+        "primaryHover": { "type": "string", "minLength": 1 },
+        "accentNeon": { "type": "string", "minLength": 1 },
+        "secondary": { "type": "string", "minLength": 1 },
+        "danger": { "type": "string", "minLength": 1 },
+        "success": { "type": "string", "minLength": 1 },
+        "warn": { "type": "string", "minLength": 1 },
+        "error": { "type": "string", "minLength": 1 }
+      }
+    },
+    "typography": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "fontDisplay": { "type": "string", "minLength": 1 },
+        "fontBody": { "type": "string", "minLength": 1 },
+        "fontMono": { "type": "string", "minLength": 1 },
+        "letterSpacingDisplay": { "type": "number", "minimum": -0.2, "maximum": 0.2 },
+        "displayFontEnabled": { "type": "boolean" }
+      }
+    },
+    "radii": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "sm": { "type": "number", "minimum": 0, "maximum": 48 },
+        "md": { "type": "number", "minimum": 0, "maximum": 64 },
+        "lg": { "type": "number", "minimum": 0, "maximum": 80 }
+      }
+    },
+    "effects": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "glowSm": { "type": "string", "minLength": 1 },
+        "glowMd": { "type": "string", "minLength": 1 },
+        "glowLg": { "type": "string", "minLength": 1 },
+        "glowEnabled": { "type": "boolean" },
+        "glowIntensity": { "type": "number", "minimum": 0, "maximum": 2 },
+        "noiseOpacity": { "type": "number", "minimum": 0, "maximum": 0.2 }
+      }
+    }
+  },
+  "required": ["colors"]
+}

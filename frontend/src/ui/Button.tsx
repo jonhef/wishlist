@@ -7,5 +7,5 @@ type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
 };
 
 export function Button({ variant = "primary", className = "", ...props }: ButtonProps): JSX.Element {
-  return <button className={`ui-button ui-button-${variant} ${className}`.trim()} {...props} />;
+  return <button className={`ui-button glow-focus ui-button-${variant} ${className}`.trim()} {...props} />;
 }

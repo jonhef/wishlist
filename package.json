@@ -21,6 +21,8 @@
     "lint": "npm run lint -ws --if-present",
     "test": "npm run test -ws --if-present",
     "build": "npm run build -ws --if-present",
+    "test:e2e:visual": "playwright test e2e/visual.spec.ts",
+    "test:e2e:visual:update": "playwright test e2e/visual.spec.ts --update-snapshots",
     "up:all": "docker compose up --build",
     "up-all": "npm run up:all",
     "down": "docker compose down",

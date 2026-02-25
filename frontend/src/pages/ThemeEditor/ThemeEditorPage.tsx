@@ -1,33 +1,30 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "../../api/client";
-import { defaultThemeTokens } from "../../theme/defaultTheme";
+import { defaultThemeTokens, getThemeDraft, validateThemeTokensForSave } from "../../theme/defaultTokens";
+import { bodyFontOptions, displayFontOptions, monoFontOptions } from "../../theme/fonts";
 import { useTheme } from "../../theme/ThemeProvider";
 import type { ThemeTokens } from "../../theme/model";
 import { Button, Card, Input, useToast } from "../../ui";
 
-const fontOptions = [
-  { label: "Trebuchet", value: "\"Trebuchet MS\", \"Lucida Sans Unicode\", \"Lucida Grande\", sans-serif" },
-  { label: "Georgia", value: "Georgia, Cambria, \"Times New Roman\", serif" },
-  { label: "Fira Sans", value: "\"Fira Sans\", \"Avenir Next\", \"Segoe UI\", sans-serif" },
-  { label: "Courier Prime", value: "\"Courier Prime\", \"Courier New\", monospace" }
-] as const;
+type PreviewTab = "overview" | "items" | "sharing";
 
-function getThemeDraft(base: ThemeTokens): ThemeTokens {
-  return {
-    colors: {
-      ...base.colors
-    },
-    typography: {
-      ...base.typography
-    },
-    radii: {
-      ...base.radii
-    },
-    spacing: {
-      ...base.spacing
-    }
-  };
+type ThemeColorKey = keyof ThemeTokens["colors"];
+
+const editableColorKeys: ThemeColorKey[] = [
+  "bg0",
+  "bg1",
+  "bg2",
+  "text",
+  "mutedText",
+  "border",
+  "primary",
+  "accentNeon",
+  "secondary"
+];
+
+function toTitleCase(input: string): string {
+  return input.slice(0, 1).toUpperCase() + input.slice(1);
 }
 
 export function ThemeEditorPage(): JSX.Element {
@@ -39,6 +36,8 @@ export function ThemeEditorPage(): JSX.Element {
   const [themeName, setThemeName] = useState("New Theme");
   const [draft, setDraft] = useState<ThemeTokens>(getThemeDraft(appliedTokens));
   const [wishlistId, setWishlistId] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [previewTab, setPreviewTab] = useState<PreviewTab>("overview");
 
   const wishlistQuery = useQuery({
     queryKey: ["wishlists", "for-theme-editor"],
@@ -46,16 +45,19 @@ export function ThemeEditorPage(): JSX.Element {
   });
 
   useEffect(() => {
-    const selectedTheme = themes.find((theme) => theme.id === selectedThemeId);
-
-    if (selectedTheme) {
-      setThemeName(selectedTheme.name);
-      setDraft(getThemeDraft(selectedTheme.tokens));
+    if (!selectedThemeId) {
       return;
     }
 
-    setDraft(getThemeDraft(appliedTokens));
-  }, [selectedThemeId, themes, appliedTokens]);
+    const selectedTheme = themes.find((theme) => theme.id === selectedThemeId);
+
+    if (!selectedTheme) {
+      return;
+    }
+
+    setThemeName(selectedTheme.name);
+    setDraft(getThemeDraft(selectedTheme.tokens));
+  }, [selectedThemeId, themes]);
 
   useEffect(() => {
     setPreviewTokens(draft);
@@ -95,6 +97,7 @@ export function ThemeEditorPage(): JSX.Element {
       setSelectedThemeId(theme.id);
       setActiveTheme(theme.id);
       setPreviewTokens(null);
+      setFieldErrors({});
       await refreshThemes();
       showToast("Theme saved", "success");
     },
@@ -127,8 +130,7 @@ export function ThemeEditorPage(): JSX.Element {
   });
 
   const previewStyle = useMemo(() => ({
-    fontFamily: draft.typography.fontFamily,
-    fontSize: `${draft.typography.fontSizeBase}px`
+    fontFamily: draft.typography.fontBody
   }), [draft]);
 
   const onSubmit = (event: FormEvent<HTMLFormElement>): void => {
@@ -139,23 +141,30 @@ export function ThemeEditorPage(): JSX.Element {
       return;
     }
 
+    const tokenErrors = validateThemeTokensForSave(draft);
+    setFieldErrors(tokenErrors);
+
+    if (Object.keys(tokenErrors).length > 0) {
+      showToast("Fill required token fields", "error");
+      return;
+    }
+
     saveMutation.mutate();
   };
-
-  const mdRadius = draft.radii.md;
 
   return (
     <section className="stack gap-lg">
       <header className="section-header">
         <div>
           <h2>Theme editor</h2>
-          <p className="muted">Preview updates instantly, persistence only after save.</p>
+          <p className="muted">Tune dark pastel + subtle neon through tokens only.</p>
         </div>
         <Button
           onClick={() => {
             setSelectedThemeId("");
             setThemeName("New Theme");
             setDraft(getThemeDraft(defaultThemeTokens));
+            setFieldErrors({});
           }}
           variant="secondary"
         >
@@ -169,9 +178,18 @@ export function ThemeEditorPage(): JSX.Element {
             <label className="ui-field" htmlFor="theme-source">
               <span className="ui-field-label">Source theme</span>
               <select
-                className="ui-input"
+                className="ui-input glow-focus"
                 id="theme-source"
-                onChange={(event) => setSelectedThemeId(event.target.value)}
+                onChange={(event) => {
+                  const nextThemeId = event.target.value;
+                  setSelectedThemeId(nextThemeId);
+
+                  if (!nextThemeId) {
+                    setThemeName("New Theme");
+                    setDraft(getThemeDraft(defaultThemeTokens));
+                    setFieldErrors({});
+                  }
+                }}
                 value={selectedThemeId}
               >
                 <option value="">Unsaved new theme</option>
@@ -191,103 +209,210 @@ export function ThemeEditorPage(): JSX.Element {
               value={themeName}
             />
 
-            <div className="grid-three">
-              <label className="ui-field" htmlFor="theme-bg">
-                <span className="ui-field-label">Background</span>
-                <input
-                  className="ui-input color-input"
-                  id="theme-bg"
-                  onChange={(event) => setDraft({
-                    ...draft,
-                    colors: {
-                      ...draft.colors,
-                      bg: event.target.value
-                    }
-                  })}
-                  type="color"
-                  value={draft.colors.bg}
-                />
-              </label>
+            <div className="stack">
+              <h3>Colors</h3>
+              <div className="grid-three">
+                {editableColorKeys.map((key) => (
+                  <label className="ui-field" htmlFor={`theme-color-${key}`} key={key}>
+                    <span className="ui-field-label">{toTitleCase(key)}</span>
+                    <input
+                      className="ui-input color-input glow-focus"
+                      id={`theme-color-${key}`}
+                      onChange={(event) => setDraft({
+                        ...draft,
+                        colors: {
+                          ...draft.colors,
+                          [key]: event.target.value
+                        }
+                      })}
+                      type="color"
+                      value={draft.colors[key]}
+                    />
+                    {fieldErrors[`colors.${key}`] ? <span className="form-error">{fieldErrors[`colors.${key}`]}</span> : null}
+                  </label>
+                ))}
+              </div>
+            </div>
 
-              <label className="ui-field" htmlFor="theme-primary">
-                <span className="ui-field-label">Primary</span>
-                <input
-                  className="ui-input color-input"
-                  id="theme-primary"
-                  onChange={(event) => setDraft({
-                    ...draft,
-                    colors: {
-                      ...draft.colors,
-                      primary: event.target.value
-                    }
-                  })}
-                  type="color"
-                  value={draft.colors.primary}
-                />
-              </label>
+            <div className="stack">
+              <h3>Typography</h3>
+              <div className="grid-two">
+                <label className="ui-field" htmlFor="theme-font-display">
+                  <span className="ui-field-label">Display font</span>
+                  <select
+                    className="ui-input glow-focus"
+                    id="theme-font-display"
+                    onChange={(event) => setDraft({
+                      ...draft,
+                      typography: {
+                        ...draft.typography,
+                        fontDisplay: event.target.value
+                      }
+                    })}
+                    value={draft.typography.fontDisplay}
+                  >
+                    {displayFontOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
 
-              <label className="ui-field" htmlFor="theme-text">
-                <span className="ui-field-label">Text</span>
+                <label className="ui-field" htmlFor="theme-font-body">
+                  <span className="ui-field-label">Body font</span>
+                  <select
+                    className="ui-input glow-focus"
+                    id="theme-font-body"
+                    onChange={(event) => setDraft({
+                      ...draft,
+                      typography: {
+                        ...draft.typography,
+                        fontBody: event.target.value
+                      }
+                    })}
+                    value={draft.typography.fontBody}
+                  >
+                    {bodyFontOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+
+              <div className="grid-two">
+                <label className="ui-field" htmlFor="theme-font-mono">
+                  <span className="ui-field-label">Mono font</span>
+                  <select
+                    className="ui-input glow-focus"
+                    id="theme-font-mono"
+                    onChange={(event) => setDraft({
+                      ...draft,
+                      typography: {
+                        ...draft.typography,
+                        fontMono: event.target.value
+                      }
+                    })}
+                    value={draft.typography.fontMono}
+                  >
+                    {monoFontOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="ui-field" htmlFor="theme-letter-spacing">
+                  <span className="ui-field-label">
+                    Display letter spacing ({draft.typography.letterSpacingDisplay.toFixed(2)}em)
+                  </span>
+                  <input
+                    className="ui-input"
+                    id="theme-letter-spacing"
+                    max={0.08}
+                    min={-0.12}
+                    onChange={(event) => {
+                      const value = Number(event.target.value);
+                      setDraft({
+                        ...draft,
+                        typography: {
+                          ...draft.typography,
+                          letterSpacingDisplay: value
+                        }
+                      });
+                    }}
+                    step={0.01}
+                    type="range"
+                    value={draft.typography.letterSpacingDisplay}
+                  />
+                </label>
+              </div>
+
+              <label className="switch-row" htmlFor="theme-display-font-enabled">
                 <input
-                  className="ui-input color-input"
-                  id="theme-text"
+                  checked={draft.typography.displayFontEnabled}
+                  id="theme-display-font-enabled"
                   onChange={(event) => setDraft({
                     ...draft,
-                    colors: {
-                      ...draft.colors,
-                      text: event.target.value
+                    typography: {
+                      ...draft.typography,
+                      displayFontEnabled: event.target.checked
                     }
                   })}
-                  type="color"
-                  value={draft.colors.text}
+                  type="checkbox"
                 />
+                <span>Use display font on headings</span>
               </label>
             </div>
 
-            <label className="ui-field" htmlFor="theme-radius">
-              <span className="ui-field-label">Radius ({mdRadius}px)</span>
-              <input
-                className="ui-input"
-                id="theme-radius"
-                max={28}
-                min={4}
-                onChange={(event) => {
-                  const radius = Number(event.target.value);
-                  setDraft({
-                    ...draft,
-                    radii: {
-                      sm: Math.max(2, radius - 4),
-                      md: radius,
-                      lg: radius + 8
-                    }
-                  });
-                }}
-                type="range"
-                value={mdRadius}
-              />
-            </label>
+            <div className="stack">
+              <h3>Effects</h3>
 
-            <label className="ui-field" htmlFor="theme-font">
-              <span className="ui-field-label">Font</span>
-              <select
-                className="ui-input"
-                id="theme-font"
-                onChange={(event) => setDraft({
-                  ...draft,
-                  typography: {
-                    ...draft.typography,
-                    fontFamily: event.target.value
-                  }
-                })}
-                value={draft.typography.fontFamily}
-              >
-                {fontOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
+              <label className="switch-row" htmlFor="theme-glow-enabled">
+                <input
+                  checked={draft.effects.glowEnabled}
+                  id="theme-glow-enabled"
+                  onChange={(event) => setDraft({
+                    ...draft,
+                    effects: {
+                      ...draft.effects,
+                      glowEnabled: event.target.checked
+                    }
+                  })}
+                  type="checkbox"
+                />
+                <span>Glow enabled</span>
+              </label>
+
+              <label className="ui-field" htmlFor="theme-glow-intensity">
+                <span className="ui-field-label">Glow intensity multiplier ({draft.effects.glowIntensity.toFixed(2)}x)</span>
+                <input
+                  className="ui-input"
+                  id="theme-glow-intensity"
+                  max={2}
+                  min={0}
+                  onChange={(event) => {
+                    const value = Number(event.target.value);
+                    setDraft({
+                      ...draft,
+                      effects: {
+                        ...draft.effects,
+                        glowIntensity: value
+                      }
+                    });
+                  }}
+                  step={0.05}
+                  type="range"
+                  value={draft.effects.glowIntensity}
+                />
+              </label>
+
+              <label className="ui-field" htmlFor="theme-noise-opacity">
+                <span className="ui-field-label">Noise opacity ({draft.effects.noiseOpacity.toFixed(3)})</span>
+                <input
+                  className="ui-input"
+                  id="theme-noise-opacity"
+                  max={0.2}
+                  min={0}
+                  onChange={(event) => {
+                    const value = Number(event.target.value);
+                    setDraft({
+                      ...draft,
+                      effects: {
+                        ...draft.effects,
+                        noiseOpacity: value
+                      }
+                    });
+                  }}
+                  step={0.005}
+                  type="range"
+                  value={draft.effects.noiseOpacity}
+                />
+              </label>
+            </div>
 
             <div className="actions-row">
               <Button disabled={saveMutation.isPending} type="submit">
@@ -299,15 +424,63 @@ export function ThemeEditorPage(): JSX.Element {
 
         <Card className="stack gap-md">
           <h3>Preview</h3>
-          <div className="preview-panel" style={previewStyle}>
-            <Card>
-              <p>Card sample using current tokens.</p>
-              <Input id="preview-input" label="Input" placeholder="Try typing" />
+          <div className="preview-panel stack gap-md" style={previewStyle}>
+            <div className="ui-tab-list" role="tablist" aria-label="Preview tabs">
+              <button
+                aria-selected={previewTab === "overview"}
+                className="ui-tab glow-focus"
+                onClick={() => setPreviewTab("overview")}
+                role="tab"
+                type="button"
+              >
+                Overview
+              </button>
+              <button
+                aria-selected={previewTab === "items"}
+                className="ui-tab glow-focus"
+                onClick={() => setPreviewTab("items")}
+                role="tab"
+                type="button"
+              >
+                Items
+              </button>
+              <button
+                aria-selected={previewTab === "sharing"}
+                className="ui-tab glow-focus"
+                onClick={() => setPreviewTab("sharing")}
+                role="tab"
+                type="button"
+              >
+                Sharing
+              </button>
+            </div>
+
+            <Card className="stack gap-md">
+              <h3>Interactive sample</h3>
+              <Input id="preview-input" label="Input focus" placeholder="Tab here" />
               <div className="actions-row">
                 <Button>Primary</Button>
                 <Button variant="secondary">Secondary</Button>
+                <Button variant="ghost">Ghost</Button>
               </div>
+              <p className="muted">Hover card/button, focus input, switch tabs to check glow behavior.</p>
             </Card>
+
+            <div className="stack">
+              <h3>Token checks</h3>
+              <div className="token-row">
+                <span className="muted">Glow sm</span>
+                <span className="token-chip">{draft.effects.glowSm}</span>
+              </div>
+              <div className="token-row">
+                <span className="muted">Glow md</span>
+                <span className="token-chip">{draft.effects.glowMd}</span>
+              </div>
+              <div className="token-row">
+                <span className="muted">Glow lg</span>
+                <span className="token-chip">{draft.effects.glowLg}</span>
+              </div>
+            </div>
           </div>
         </Card>
       </div>
@@ -318,7 +491,7 @@ export function ThemeEditorPage(): JSX.Element {
         <label className="ui-field" htmlFor="apply-wishlist">
           <span className="ui-field-label">Wishlist</span>
           <select
-            className="ui-input"
+            className="ui-input glow-focus"
             id="apply-wishlist"
             onChange={(event) => setWishlistId(event.target.value)}
             value={wishlistId}

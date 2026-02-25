@@ -2,6 +2,8 @@ namespace Wishlist.Api.Features.Themes;
 
 public interface IThemeService
 {
+  Task<ThemeServiceResult<DefaultThemeDto>> GetDefaultAsync(CancellationToken cancellationToken);
+
   Task<ThemeServiceResult<ThemeDto>> CreateAsync(
     Guid ownerUserId,
     CreateThemeRequestDto request,

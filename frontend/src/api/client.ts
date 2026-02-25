@@ -1,33 +1,50 @@
 import { z } from "zod";
-import type { Theme, ThemeTokens } from "../theme/model";
+import { resolveThemeTokens } from "../theme/defaultTokens";
+import type { Theme, ThemePreset, ThemeTokensPatch } from "../theme/model";
 
 const zIsoDate = z.string().min(1);
 
-const themeTokensSchema = z.object({
+const themeTokensPatchSchema = z.object({
+  schemaVersion: z.number().int().optional(),
   colors: z.object({
-    bg: z.string(),
-    text: z.string(),
-    primary: z.string(),
-    secondary: z.string(),
-    muted: z.string(),
-    border: z.string()
-  }),
+    bg0: z.string().optional(),
+    bg1: z.string().optional(),
+    bg2: z.string().optional(),
+    text: z.string().optional(),
+    mutedText: z.string().optional(),
+    border: z.string().optional(),
+    primary: z.string().optional(),
+    primaryHover: z.string().optional(),
+    accentNeon: z.string().optional(),
+    secondary: z.string().optional(),
+    danger: z.string().optional(),
+    success: z.string().optional(),
+    warn: z.string().optional(),
+    error: z.string().optional()
+  }).optional(),
   typography: z.object({
-    fontFamily: z.string(),
-    fontSizeBase: z.number()
-  }),
+    fontDisplay: z.string().optional(),
+    fontBody: z.string().optional(),
+    fontMono: z.string().optional(),
+    letterSpacingDisplay: z.number().optional(),
+    displayFontEnabled: z.boolean().optional()
+  }).optional(),
   radii: z.object({
-    sm: z.number(),
-    md: z.number(),
-    lg: z.number()
-  }),
-  spacing: z.object({
-    xs: z.number(),
-    sm: z.number(),
-    md: z.number(),
-    lg: z.number()
-  })
+    sm: z.number().optional(),
+    md: z.number().optional(),
+    lg: z.number().optional()
+  }).optional(),
+  effects: z.object({
+    glowSm: z.string().optional(),
+    glowMd: z.string().optional(),
+    glowLg: z.string().optional(),
+    glowEnabled: z.boolean().optional(),
+    glowIntensity: z.number().optional(),
+    noiseOpacity: z.number().optional()
+  }).optional()
 });
+
+const resolvedThemeTokensSchema = themeTokensPatchSchema.transform((tokens) => resolveThemeTokens(tokens));
 
 const authTokensSchema = z.object({
   accessToken: z.string(),
@@ -75,7 +92,7 @@ const itemListSchema = z.object({
 const themeSchema = z.object({
   id: z.string().uuid(),
   name: z.string(),
-  tokens: themeTokensSchema,
+  tokens: resolvedThemeTokensSchema,
   createdAtUtc: zIsoDate
 });
 
@@ -87,6 +104,7 @@ const themeListSchema = z.object({
 const publicWishlistSchema = z.object({
   title: z.string(),
   description: z.string().nullable(),
+  themeTokens: resolvedThemeTokensSchema,
   items: z.array(
     z.object({
       name: z.string(),
@@ -98,6 +116,11 @@ const publicWishlistSchema = z.object({
     })
   ),
   nextCursor: z.string().nullable()
+});
+
+const defaultThemeSchema = z.object({
+  name: z.string(),
+  tokens: resolvedThemeTokensSchema
 });
 
 const shareRotationSchema = z.object({
@@ -162,12 +185,12 @@ export type PublicWishlist = z.infer<typeof publicWishlistSchema>;
 
 export type CreateThemeRequest = {
   name: string;
-  tokens: ThemeTokens;
+  tokens: ThemeTokensPatch;
 };
 
 export type UpdateThemeRequest = {
   name?: string;
-  tokens?: ThemeTokens;
+  tokens?: ThemeTokensPatch;
 };
 
 export class ApiError extends Error {
@@ -498,6 +521,18 @@ class ApiClient {
 
   async disableShareLink(wishlistId: string): Promise<void> {
     await this.request(`/wishlists/${wishlistId}/share`, { method: "DELETE" }, null);
+  }
+
+  async getDefaultTheme(): Promise<ThemePreset> {
+    return this.request(
+      "/themes/default",
+      { method: "GET" },
+      defaultThemeSchema,
+      {
+        auth: false,
+        retry401: false
+      }
+    );
   }
 
   async listThemes(cursor?: string, limit = 50): Promise<{ items: Theme[]; nextCursor: string | null }> {

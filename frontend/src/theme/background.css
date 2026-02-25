@@ -1,0 +1,21 @@
+body {
+  background:
+    radial-gradient(60rem 40rem at 0% -10%, color-mix(in srgb, var(--color-primary) 18%, transparent), transparent 60%),
+    radial-gradient(50rem 35rem at 100% 0%, color-mix(in srgb, var(--color-secondary) 20%, transparent), transparent 62%),
+    linear-gradient(150deg, var(--color-bg0), var(--color-bg1) 48%, var(--color-bg0));
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.95' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
+  opacity: var(--effect-noise-opacity);
+  z-index: 0;
+}
+
+#root {
+  position: relative;
+  z-index: 1;
+}

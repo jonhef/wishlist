@@ -1,9 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
+import { useEffect } from "react";
 import { Link, useParams } from "react-router-dom";
 import { ApiError, apiClient } from "../../api/client";
+import { defaultThemeTokens } from "../../theme/defaultTokens";
+import { useTheme } from "../../theme/ThemeProvider";
 import { Card } from "../../ui";
-
-// Public API currently does not expose theme tokens/themeId, so public route uses active default theme.
 
 function isApiError(error: unknown): error is ApiError {
   return error instanceof ApiError;
@@ -11,12 +12,20 @@ function isApiError(error: unknown): error is ApiError {
 
 export function PublicWishlistPage(): JSX.Element {
   const { token } = useParams<{ token: string }>();
+  const { setPreviewTokens } = useTheme();
 
   const query = useQuery({
     enabled: Boolean(token),
     queryKey: ["public-wishlist", token],
     queryFn: () => apiClient.getPublicWishlist(token as string)
   });
+
+  useEffect(() => {
+    setPreviewTokens(query.data?.themeTokens ?? defaultThemeTokens);
+    return () => {
+      setPreviewTokens(null);
+    };
+  }, [query.data?.themeTokens, setPreviewTokens]);
 
   if (!token) {
     return <p className="form-error">Missing public token.</p>;

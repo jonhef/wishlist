@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import { apiClient } from "../api/client";
 import { useAuth } from "../auth/AuthProvider";
 import { applyThemeTokens } from "./cssVars";
-import { defaultThemeTokens } from "./defaultTheme";
+import { defaultThemeTokens, resolveThemeTokens } from "./defaultTokens";
 import type { Theme, ThemeTokens } from "./model";
 
 type ThemeContextValue = {
@@ -51,7 +51,14 @@ export function ThemeProvider({ children }: { children: ReactNode }): JSX.Elemen
     if (!isAuthenticated) {
       setThemes([]);
       setActiveThemeId(null);
-      setActiveTokens(defaultThemeTokens);
+
+      try {
+        const preset = await apiClient.getDefaultTheme();
+        setActiveTokens(resolveThemeTokens(preset.tokens));
+      } catch {
+        setActiveTokens(defaultThemeTokens);
+      }
+
       return;
     }
 
@@ -65,7 +72,7 @@ export function ThemeProvider({ children }: { children: ReactNode }): JSX.Elemen
 
       setThemes(fetchedThemes);
       setActiveThemeId(selected?.id ?? null);
-      setActiveTokens(selected?.tokens ?? defaultThemeTokens);
+      setActiveTokens(resolveThemeTokens(selected?.tokens ?? defaultThemeTokens));
     } catch {
       setThemes([]);
       setActiveThemeId(null);
@@ -106,10 +113,10 @@ export function ThemeProvider({ children }: { children: ReactNode }): JSX.Elemen
       }
 
       const match = themes.find((theme) => theme.id === themeId);
-      setActiveTokens(match?.tokens ?? defaultThemeTokens);
+      setActiveTokens(resolveThemeTokens(match?.tokens ?? defaultThemeTokens));
     },
     setPreviewTokens: (tokens: ThemeTokens | null) => {
-      setPreviewTokensState(tokens);
+      setPreviewTokensState(tokens ? resolveThemeTokens(tokens) : null);
     },
     refreshThemes,
     upsertTheme: (theme: Theme) => {
@@ -123,7 +130,7 @@ export function ThemeProvider({ children }: { children: ReactNode }): JSX.Elemen
         return currentThemes.map((entry) => (entry.id === theme.id ? theme : entry));
       });
       setActiveThemeId(theme.id);
-      setActiveTokens(theme.tokens);
+      setActiveTokens(resolveThemeTokens(theme.tokens));
     }
   }), [activeThemeId, activeTokens, isLoadingThemes, previewTokens, refreshThemes, themes]);
 

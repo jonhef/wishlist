@@ -1,3 +1,5 @@
+using Wishlist.Api.Features.Themes;
+
 namespace Wishlist.Api.Features.Sharing;
 
 public sealed record ShareRotationResult(string Token);
@@ -15,6 +17,7 @@ public sealed record PublicWishlistItemDto(
 public sealed record PublicWishlistDto(
   string Title,
   string? Description,
+  ThemeTokensDto ThemeTokens,
   IReadOnlyList<PublicWishlistItemDto> Items,
   string? NextCursor);
 

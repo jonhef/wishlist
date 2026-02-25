@@ -1,0 +1,54 @@
+.glow-focus:focus-visible {
+  outline: 2px solid var(--color-accent-neon);
+  outline-offset: 2px;
+  box-shadow: var(--effect-glow-sm);
+}
+
+.glow-hover:hover {
+  box-shadow: var(--effect-glow-md);
+}
+
+.glow-active,
+.ui-tab[aria-selected="true"],
+.nav-link.active {
+  border-color: var(--color-accent-neon);
+  box-shadow: var(--effect-glow-sm);
+}
+
+.ui-button-primary:hover {
+  box-shadow: var(--effect-glow-md);
+}
+
+.ui-card {
+  transition: border-color 140ms ease, box-shadow 140ms ease, transform 140ms ease;
+}
+
+.ui-card:hover {
+  border-color: color-mix(in srgb, var(--color-accent-neon) 50%, var(--color-border));
+  box-shadow: var(--effect-glow-sm);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-card,
+  .ui-button,
+  .nav-link {
+    transition: none;
+  }
+
+  .ui-button:hover,
+  .ui-card:hover {
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce), (prefers-contrast: more) {
+  .glow-focus:focus-visible,
+  .glow-hover:hover,
+  .glow-active,
+  .ui-button-primary:hover,
+  .ui-card:hover,
+  .ui-tab[aria-selected="true"],
+  .nav-link.active {
+    box-shadow: none;
+  }
+}

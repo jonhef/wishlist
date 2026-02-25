@@ -130,7 +130,7 @@ Behavior:
 - `POST /share` always rotates token (old token becomes invalid)
 - token is generated as random base64url value and only `token_hash` is stored in DB
 - `DELETE /share` disables sharing
-- public response contains only `title`, `description`, `items`
+- public response contains `title`, `description`, `themeTokens`, `items`
 - public items listing is cursor-paginated, `limit` max is `50`
 - disabled/invalid share token returns `404` (not `403`)
 - public endpoint is rate-limited (`60 req/min`)
@@ -139,24 +139,29 @@ Behavior:
 
 Endpoints:
 
+- `GET /themes/default` (public preset, no auth)
 - `POST /themes` with `{ name, tokens }`
 - `GET /themes?cursor=...&limit=...`
 - `GET /themes/{id}`
 - `PATCH /themes/{id}` with `{ name?, tokens? }`
 - `DELETE /themes/{id}`
 
-Tokens schema (required keys):
+Tokens schema v1 (see `docs/theme-tokens.schema.json`):
 
-- `colors`: `bg`, `text`, `primary`, `secondary`, `muted`, `border`
-- `typography`: `fontFamily`, `fontSizeBase`
+- `schemaVersion`: `1`
+- required on save: `colors.bg0`, `colors.text`
+- supported color keys: `bg0`, `bg1`, `bg2`, `text`, `mutedText`, `border`, `primary`,
+  `primaryHover`, `accentNeon`, `secondary`, `danger`, `success`, `warn`, `error`
+- `typography`: `fontDisplay`, `fontBody`, `fontMono`, `letterSpacingDisplay`, `displayFontEnabled`
 - `radii`: `sm`, `md`, `lg`
-- `spacing`: `xs`, `sm`, `md`, `lg`
+- `effects`: `glowSm`, `glowMd`, `glowLg`, `glowEnabled`, `glowIntensity`, `noiseOpacity`
 
 Rules:
 
 - each theme belongs to `ownerUserId`; only owner can read/update/delete
 - wishlist can reference only owner's `themeId` (checked in wishlist service)
-- `PATCH` behavior for `tokens`: replace whole object (no merge)
+- save accepts partial token payload, but `colors.bg0` and `colors.text` are mandatory
+- list/get/public always return resolved tokens with fallback from `DefaultDarkPinkNeon`
 
 ## Error format (RFC7807)
 

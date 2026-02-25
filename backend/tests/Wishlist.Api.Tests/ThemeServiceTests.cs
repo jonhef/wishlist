@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Wishlist.Api.Domain.Entities;
@@ -9,6 +10,21 @@ namespace Wishlist.Api.Tests;
 public sealed class ThemeServiceTests
 {
   [Fact]
+  public async Task GetDefaultAsync_ReturnsDefaultDarkPinkNeonPreset()
+  {
+    await using var dbContext = CreateDbContext();
+    var service = new ThemeService(dbContext, TimeProvider.System);
+
+    var result = await service.GetDefaultAsync(CancellationToken.None);
+
+    Assert.True(result.IsSuccess);
+    Assert.NotNull(result.Value);
+    Assert.Equal("DefaultDarkPinkNeon", result.Value!.Name);
+    Assert.Equal(1, result.Value.Tokens.SchemaVersion);
+    Assert.Equal("#0b0610", result.Value.Tokens.Colors.Bg0);
+  }
+
+  [Fact]
   public async Task CreateAsync_InvalidTokens_ReturnsValidationFailed()
   {
     await using var dbContext = CreateDbContext();
@@ -18,11 +34,12 @@ public sealed class ThemeServiceTests
     dbContext.Users.Add(owner);
     await dbContext.SaveChangesAsync();
 
-    var invalidTokens = new ThemeTokensDto(
-      new ThemeColorsDto("", "#111", "#222", "#333", "#444", "#555"),
-      new ThemeTypographyDto("Manrope", 16),
-      new ThemeRadiiDto(2, 4, 8),
-      new ThemeSpacingDto(4, 8, 12, 16));
+    var invalidTokens = new ThemeTokensPatchDto(
+      1,
+      new ThemeColorsPatchDto(null, null, null, null, null, null, null, null, null, null, null, null, null, null),
+      null,
+      null,
+      null);
 
     var result = await service.CreateAsync(
       owner.Id,
@@ -44,9 +61,9 @@ public sealed class ThemeServiceTests
 
     dbContext.Users.AddRange(owner, other);
     dbContext.Themes.AddRange(
-      CreateTheme(owner.Id, "Owner 1", DefaultTokens(), DateTime.UtcNow.AddMinutes(-2)),
-      CreateTheme(owner.Id, "Owner 2", DefaultTokens(), DateTime.UtcNow.AddMinutes(-1)),
-      CreateTheme(other.Id, "Other 1", DefaultTokens(), DateTime.UtcNow));
+      CreateTheme(owner.Id, "Owner 1", DefaultTokensPatch(), DateTime.UtcNow.AddMinutes(-2)),
+      CreateTheme(owner.Id, "Owner 2", DefaultTokensPatch(), DateTime.UtcNow.AddMinutes(-1)),
+      CreateTheme(other.Id, "Other 1", DefaultTokensPatch(), DateTime.UtcNow));
     await dbContext.SaveChangesAsync();
 
     var result = await service.ListAsync(owner.Id, new ThemeListQuery(null, 50), CancellationToken.None);
@@ -69,7 +86,7 @@ public sealed class ThemeServiceTests
     var baseTime = DateTime.UtcNow;
     for (var i = 0; i < 55; i++)
     {
-      dbContext.Themes.Add(CreateTheme(owner.Id, $"Theme-{i}", DefaultTokens(), baseTime.AddMinutes(i)));
+      dbContext.Themes.Add(CreateTheme(owner.Id, $"Theme-{i}", DefaultTokensPatch(), baseTime.AddMinutes(i)));
     }
 
     await dbContext.SaveChangesAsync();
@@ -95,22 +112,23 @@ public sealed class ThemeServiceTests
   }
 
   [Fact]
-  public async Task UpdateAsync_ReplacesWholeTokens()
+  public async Task UpdateAsync_IncompleteTokens_AppliesDefaultFallback()
   {
     await using var dbContext = CreateDbContext();
     var service = new ThemeService(dbContext, TimeProvider.System);
     var owner = CreateUser("theme-owner3@example.com");
-    var theme = CreateTheme(owner.Id, "Old", DefaultTokens(), DateTime.UtcNow);
+    var theme = CreateTheme(owner.Id, "Old", DefaultTokensPatch(), DateTime.UtcNow);
 
     dbContext.Users.Add(owner);
     dbContext.Themes.Add(theme);
     await dbContext.SaveChangesAsync();
 
-    var replacementTokens = new ThemeTokensDto(
-      new ThemeColorsDto("#000000", "#ffffff", "#ff0000", "#00ff00", "#999999", "#444444"),
-      new ThemeTypographyDto("IBM Plex Sans", 15),
-      new ThemeRadiiDto(3, 6, 9),
-      new ThemeSpacingDto(2, 6, 10, 14));
+    var replacementTokens = new ThemeTokensPatchDto(
+      1,
+      new ThemeColorsPatchDto("#000000", null, null, "#ffffff", null, null, "#ff0000", null, null, null, null, null, null, null),
+      new ThemeTypographyPatchDto("\"Unbounded\", sans-serif", null, null, -0.04m, null),
+      new ThemeRadiiPatchDto(6, null, null),
+      null);
 
     var result = await service.UpdateAsync(
       owner.Id,
@@ -120,9 +138,11 @@ public sealed class ThemeServiceTests
 
     Assert.True(result.IsSuccess);
     Assert.NotNull(result.Value);
-    Assert.Equal("#000000", result.Value!.Tokens.Colors.Bg);
-    Assert.Equal("IBM Plex Sans", result.Value.Tokens.Typography.FontFamily);
-    Assert.Equal(14, result.Value.Tokens.Spacing.Lg);
+    Assert.Equal("#000000", result.Value!.Tokens.Colors.Bg0);
+    Assert.Equal("#ffffff", result.Value.Tokens.Colors.Text);
+    Assert.Equal("#120a1a", result.Value.Tokens.Colors.Bg1);
+    Assert.Equal(16, result.Value.Tokens.Radii.Md);
+    Assert.Equal(1, result.Value.Tokens.SchemaVersion);
   }
 
   [Fact]
@@ -133,7 +153,7 @@ public sealed class ThemeServiceTests
 
     var owner = CreateUser("theme-owner4@example.com");
     var intruder = CreateUser("theme-intruder4@example.com");
-    var theme = CreateTheme(owner.Id, "Private", DefaultTokens(), DateTime.UtcNow);
+    var theme = CreateTheme(owner.Id, "Private", DefaultTokensPatch(), DateTime.UtcNow);
 
     dbContext.Users.AddRange(owner, intruder);
     dbContext.Themes.Add(theme);
@@ -153,12 +173,12 @@ public sealed class ThemeServiceTests
 
     var owner = CreateUser("theme-owner5@example.com");
     dbContext.Users.Add(owner);
-    dbContext.Themes.Add(CreateTheme(owner.Id, "Dup", DefaultTokens(), DateTime.UtcNow));
+    dbContext.Themes.Add(CreateTheme(owner.Id, "Dup", DefaultTokensPatch(), DateTime.UtcNow));
     await dbContext.SaveChangesAsync();
 
     var result = await service.CreateAsync(
       owner.Id,
-      new CreateThemeRequestDto("Dup", DefaultTokens()),
+      new CreateThemeRequestDto("Dup", DefaultTokensPatch()),
       CancellationToken.None);
 
     Assert.False(result.IsSuccess);
@@ -191,23 +211,54 @@ public sealed class ThemeServiceTests
     return user;
   }
 
-  private static ThemeEntity CreateTheme(Guid ownerId, string name, ThemeTokensDto tokens, DateTime createdAtUtc)
+  private static ThemeEntity CreateTheme(Guid ownerId, string name, ThemeTokensPatchDto tokens, DateTime createdAtUtc)
   {
     return new ThemeEntity
     {
       OwnerUserId = ownerId,
       Name = name,
-      TokensJson = System.Text.Json.JsonSerializer.Serialize(tokens, new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web)),
+      TokensJson = JsonSerializer.Serialize(tokens, new JsonSerializerOptions(JsonSerializerDefaults.Web)),
       CreatedAtUtc = createdAtUtc
     };
   }
 
-  private static ThemeTokensDto DefaultTokens()
+  private static ThemeTokensPatchDto DefaultTokensPatch()
   {
-    return new ThemeTokensDto(
-      new ThemeColorsDto("#ffffff", "#111111", "#0d6efd", "#6c757d", "#f8f9fa", "#dee2e6"),
-      new ThemeTypographyDto("Inter", 16),
-      new ThemeRadiiDto(4, 8, 12),
-      new ThemeSpacingDto(4, 8, 12, 16));
+    var defaults = ThemeTokenDefaults.CreateDefault();
+
+    return new ThemeTokensPatchDto(
+      defaults.SchemaVersion,
+      new ThemeColorsPatchDto(
+        defaults.Colors.Bg0,
+        defaults.Colors.Bg1,
+        defaults.Colors.Bg2,
+        defaults.Colors.Text,
+        defaults.Colors.MutedText,
+        defaults.Colors.Border,
+        defaults.Colors.Primary,
+        defaults.Colors.PrimaryHover,
+        defaults.Colors.AccentNeon,
+        defaults.Colors.Secondary,
+        defaults.Colors.Danger,
+        defaults.Colors.Success,
+        defaults.Colors.Warn,
+        defaults.Colors.Error),
+      new ThemeTypographyPatchDto(
+        defaults.Typography.FontDisplay,
+        defaults.Typography.FontBody,
+        defaults.Typography.FontMono,
+        defaults.Typography.LetterSpacingDisplay,
+        defaults.Typography.DisplayFontEnabled),
+      new ThemeRadiiPatchDto(
+        defaults.Radii.Sm,
+        defaults.Radii.Md,
+        defaults.Radii.Lg),
+      new ThemeEffectsPatchDto(
+        defaults.Effects.GlowSm,
+        defaults.Effects.GlowMd,
+        defaults.Effects.GlowLg,
+        defaults.Effects.GlowEnabled,
+        defaults.Effects.GlowIntensity,
+        defaults.Effects.NoiseOpacity));
   }
 }

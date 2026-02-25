@@ -17,12 +17,18 @@ public sealed class ThemeService(AppDbContext dbContext, TimeProvider timeProvid
   private readonly AppDbContext _dbContext = dbContext;
   private readonly TimeProvider _timeProvider = timeProvider;
 
+  public Task<ThemeServiceResult<DefaultThemeDto>> GetDefaultAsync(CancellationToken cancellationToken)
+  {
+    var payload = new DefaultThemeDto(ThemeTokenDefaults.DefaultThemeName, ThemeTokenDefaults.CreateDefault());
+    return Task.FromResult(ThemeServiceResult<DefaultThemeDto>.Success(payload));
+  }
+
   public async Task<ThemeServiceResult<ThemeDto>> CreateAsync(
     Guid ownerUserId,
     CreateThemeRequestDto request,
     CancellationToken cancellationToken)
   {
-    if (!ValidateName(request.Name) || !ValidateTokens(request.Tokens))
+    if (!ValidateName(request.Name) || !ThemeTokenDefaults.ValidatePatchForSave(request.Tokens))
     {
       return ThemeServiceResult<ThemeDto>.Failure(ThemeErrorCodes.ValidationFailed);
     }
@@ -152,7 +158,7 @@ public sealed class ThemeService(AppDbContext dbContext, TimeProvider timeProvid
 
     if (request.Tokens is not null)
     {
-      if (!ValidateTokens(request.Tokens))
+      if (!ThemeTokenDefaults.ValidatePatchForSave(request.Tokens))
       {
         return ThemeServiceResult<ThemeDto>.Failure(ThemeErrorCodes.ValidationFailed);
       }
@@ -198,79 +204,14 @@ public sealed class ThemeService(AppDbContext dbContext, TimeProvider timeProvid
 
   private static ThemeDto ToDto(ThemeEntity entity)
   {
-    var tokens = ParseTokensOrDefault(entity.TokensJson);
+    var tokens = ThemeTokenDefaults.ParseAndNormalize(entity.TokensJson);
     return new ThemeDto(entity.Id, entity.Name, tokens, entity.CreatedAtUtc);
-  }
-
-  private static ThemeTokensDto ParseTokensOrDefault(string? tokensJson)
-  {
-    if (!string.IsNullOrWhiteSpace(tokensJson))
-    {
-      try
-      {
-        var parsed = JsonSerializer.Deserialize<ThemeTokensDto>(tokensJson, JsonOptions);
-        if (parsed is not null && ValidateTokens(parsed))
-        {
-          return parsed;
-        }
-      }
-      catch
-      {
-      }
-    }
-
-    return DefaultTokens();
   }
 
   private static bool ValidateName(string name)
   {
     var trimmed = name?.Trim();
     return !string.IsNullOrWhiteSpace(trimmed) && trimmed.Length <= 80;
-  }
-
-  private static bool ValidateTokens(ThemeTokensDto? tokens)
-  {
-    if (tokens is null
-      || tokens.Colors is null
-      || tokens.Typography is null
-      || tokens.Radii is null
-      || tokens.Spacing is null)
-    {
-      return false;
-    }
-
-    if (!IsNonEmpty(tokens.Colors.Bg)
-      || !IsNonEmpty(tokens.Colors.Text)
-      || !IsNonEmpty(tokens.Colors.Primary)
-      || !IsNonEmpty(tokens.Colors.Secondary)
-      || !IsNonEmpty(tokens.Colors.Muted)
-      || !IsNonEmpty(tokens.Colors.Border))
-    {
-      return false;
-    }
-
-    if (!IsNonEmpty(tokens.Typography.FontFamily)
-      || tokens.Typography.FontSizeBase <= 0)
-    {
-      return false;
-    }
-
-    if (tokens.Radii.Sm < 0 || tokens.Radii.Md < 0 || tokens.Radii.Lg < 0)
-    {
-      return false;
-    }
-
-    if (tokens.Spacing.Xs < 0 || tokens.Spacing.Sm < 0 || tokens.Spacing.Md < 0 || tokens.Spacing.Lg < 0)
-    {
-      return false;
-    }
-
-    return true;
-  }
-
-  private static bool IsNonEmpty(string? value)
-  {
-    return !string.IsNullOrWhiteSpace(value) && value.Trim().Length <= 120;
   }
 
   private static int NormalizeLimit(int? limit)
@@ -330,16 +271,6 @@ public sealed class ThemeService(AppDbContext dbContext, TimeProvider timeProvid
 
   private static bool IsThemeNameConflict(DbUpdateException ex)
   {
-    var message = ex.InnerException?.Message ?? ex.Message;
-    return message.Contains("themes.OwnerUserId, themes.Name", StringComparison.OrdinalIgnoreCase);
-  }
-
-  private static ThemeTokensDto DefaultTokens()
-  {
-    return new ThemeTokensDto(
-      new ThemeColorsDto("#ffffff", "#111111", "#0d6efd", "#6c757d", "#f8f9fa", "#dee2e6"),
-      new ThemeTypographyDto("system-ui", 16),
-      new ThemeRadiiDto(4, 8, 12),
-      new ThemeSpacingDto(4, 8, 12, 16));
+    return ex.InnerException?.Message.Contains("UNIQUE", StringComparison.OrdinalIgnoreCase) == true;
   }
 }

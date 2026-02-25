@@ -1,8 +1,9 @@
+using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
-using System.Globalization;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
+using Wishlist.Api.Features.Themes;
 using Wishlist.Api.Infrastructure.Persistence;
 
 namespace Wishlist.Api.Features.Sharing;
@@ -137,13 +138,35 @@ public sealed class WishlistShareService(AppDbContext dbContext) : IWishlistShar
       ? EncodeCursor(candidates[^1].UpdatedAtUtc, candidates[^1].Id)
       : null;
 
+    var themeTokens = await ResolveThemeTokensAsync(wishlist.ThemeId, wishlist.OwnerUserId, cancellationToken);
+
     var payload = new PublicWishlistDto(
       wishlist.Title,
       wishlist.Description,
+      themeTokens,
       page,
       nextCursor);
 
     return WishlistShareServiceResult<PublicWishlistDto>.Success(payload);
+  }
+
+  private async Task<ThemeTokensDto> ResolveThemeTokensAsync(
+    Guid? themeId,
+    Guid ownerUserId,
+    CancellationToken cancellationToken)
+  {
+    if (!themeId.HasValue)
+    {
+      return ThemeTokenDefaults.CreateDefault();
+    }
+
+    var tokensJson = await _dbContext.Themes
+      .AsNoTracking()
+      .Where(theme => theme.Id == themeId.Value && theme.OwnerUserId == ownerUserId)
+      .Select(theme => theme.TokensJson)
+      .FirstOrDefaultAsync(cancellationToken);
+
+    return ThemeTokenDefaults.ParseAndNormalize(tokensJson);
   }
 
   private static string GenerateToken()
