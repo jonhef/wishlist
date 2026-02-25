@@ -1,4 +1,5 @@
 using Wishlist.Api.Api.Auth;
+using Wishlist.Api.Api.Errors;
 using Wishlist.Api.Features.Items;
 
 namespace Wishlist.Api.Api.Wishlists;
@@ -16,6 +17,7 @@ public static class WishlistItemEndpoints
   }
 
   private static async Task<IResult> CreateAsync(
+    HttpContext httpContext,
     Guid wishlistId,
     CreateItemRequestDto request,
     IItemService itemService,
@@ -31,13 +33,17 @@ public static class WishlistItemEndpoints
     return result.ErrorCode switch
     {
       null => TypedResults.Created($"/wishlists/{wishlistId}/items/{result.Value!.Id}", result.Value),
-      ItemErrorCodes.NotFound => TypedResults.NotFound(),
-      ItemErrorCodes.Forbidden => TypedResults.Forbid(),
-      _ => TypedResults.BadRequest(new { error = "Validation failed." })
+      ItemErrorCodes.NotFound => ApiProblem.NotFound(httpContext, "Wishlist or item not found."),
+      ItemErrorCodes.Forbidden => ApiProblem.Forbidden(httpContext, "Access denied."),
+      _ => ApiProblem.Validation(
+        httpContext,
+        ApiProblem.RequestError("Validation failed."),
+        "Validation failed.")
     };
   }
 
   private static async Task<IResult> ListAsync(
+    HttpContext httpContext,
     Guid wishlistId,
     string? cursor,
     int? limit,
@@ -54,13 +60,17 @@ public static class WishlistItemEndpoints
     return result.ErrorCode switch
     {
       null => TypedResults.Ok(result.Value),
-      ItemErrorCodes.NotFound => TypedResults.NotFound(),
-      ItemErrorCodes.Forbidden => TypedResults.Forbid(),
-      _ => TypedResults.BadRequest(new { error = "Validation failed." })
+      ItemErrorCodes.NotFound => ApiProblem.NotFound(httpContext, "Wishlist not found."),
+      ItemErrorCodes.Forbidden => ApiProblem.Forbidden(httpContext, "Access denied."),
+      _ => ApiProblem.Validation(
+        httpContext,
+        ApiProblem.RequestError("Validation failed."),
+        "Validation failed.")
     };
   }
 
   private static async Task<IResult> PatchAsync(
+    HttpContext httpContext,
     Guid wishlistId,
     int itemId,
     UpdateItemRequestDto request,
@@ -78,13 +88,17 @@ public static class WishlistItemEndpoints
     return result.ErrorCode switch
     {
       null => TypedResults.Ok(result.Value),
-      ItemErrorCodes.NotFound => TypedResults.NotFound(),
-      ItemErrorCodes.Forbidden => TypedResults.Forbid(),
-      _ => TypedResults.BadRequest(new { error = "Validation failed." })
+      ItemErrorCodes.NotFound => ApiProblem.NotFound(httpContext, "Item not found."),
+      ItemErrorCodes.Forbidden => ApiProblem.Forbidden(httpContext, "Access denied."),
+      _ => ApiProblem.Validation(
+        httpContext,
+        ApiProblem.RequestError("Validation failed."),
+        "Validation failed.")
     };
   }
 
   private static async Task<IResult> DeleteAsync(
+    HttpContext httpContext,
     Guid wishlistId,
     int itemId,
     IItemService itemService,
@@ -100,9 +114,12 @@ public static class WishlistItemEndpoints
     return result.ErrorCode switch
     {
       null => TypedResults.NoContent(),
-      ItemErrorCodes.NotFound => TypedResults.NotFound(),
-      ItemErrorCodes.Forbidden => TypedResults.Forbid(),
-      _ => TypedResults.BadRequest(new { error = "Validation failed." })
+      ItemErrorCodes.NotFound => ApiProblem.NotFound(httpContext, "Item not found."),
+      ItemErrorCodes.Forbidden => ApiProblem.Forbidden(httpContext, "Access denied."),
+      _ => ApiProblem.Validation(
+        httpContext,
+        ApiProblem.RequestError("Validation failed."),
+        "Validation failed.")
     };
   }
 }

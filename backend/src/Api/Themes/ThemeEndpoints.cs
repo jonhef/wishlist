@@ -1,4 +1,5 @@
 using Wishlist.Api.Api.Auth;
+using Wishlist.Api.Api.Errors;
 using Wishlist.Api.Features.Themes;
 
 namespace Wishlist.Api.Api.Themes;
@@ -23,6 +24,7 @@ public static class ThemeEndpoints
   }
 
   private static async Task<IResult> CreateAsync(
+    HttpContext httpContext,
     CreateThemeRequestDto request,
     IThemeService themeService,
     ICurrentUserAccessor currentUserAccessor,
@@ -36,8 +38,11 @@ public static class ThemeEndpoints
     return result.ErrorCode switch
     {
       null => TypedResults.Created($"/themes/{result.Value!.Id}", result.Value),
-      ThemeErrorCodes.AlreadyExists => TypedResults.Conflict(new { error = "Theme name already exists." }),
-      _ => TypedResults.BadRequest(new { error = "Validation failed." })
+      ThemeErrorCodes.AlreadyExists => ApiProblem.Conflict(httpContext, "Theme name already exists."),
+      _ => ApiProblem.Validation(
+        httpContext,
+        ApiProblem.RequestError("Validation failed."),
+        "Validation failed.")
     };
   }
 
@@ -57,6 +62,7 @@ public static class ThemeEndpoints
   }
 
   private static async Task<IResult> GetAsync(
+    HttpContext httpContext,
     Guid themeId,
     IThemeService themeService,
     ICurrentUserAccessor currentUserAccessor,
@@ -70,13 +76,17 @@ public static class ThemeEndpoints
     return result.ErrorCode switch
     {
       null => TypedResults.Ok(result.Value),
-      ThemeErrorCodes.NotFound => TypedResults.NotFound(),
-      ThemeErrorCodes.Forbidden => TypedResults.Forbid(),
-      _ => TypedResults.BadRequest(new { error = "Validation failed." })
+      ThemeErrorCodes.NotFound => ApiProblem.NotFound(httpContext, "Theme not found."),
+      ThemeErrorCodes.Forbidden => ApiProblem.Forbidden(httpContext, "Access denied."),
+      _ => ApiProblem.Validation(
+        httpContext,
+        ApiProblem.RequestError("Validation failed."),
+        "Validation failed.")
     };
   }
 
   private static async Task<IResult> PatchAsync(
+    HttpContext httpContext,
     Guid themeId,
     UpdateThemeRequestDto request,
     IThemeService themeService,
@@ -92,14 +102,18 @@ public static class ThemeEndpoints
     return result.ErrorCode switch
     {
       null => TypedResults.Ok(result.Value),
-      ThemeErrorCodes.NotFound => TypedResults.NotFound(),
-      ThemeErrorCodes.Forbidden => TypedResults.Forbid(),
-      ThemeErrorCodes.AlreadyExists => TypedResults.Conflict(new { error = "Theme name already exists." }),
-      _ => TypedResults.BadRequest(new { error = "Validation failed." })
+      ThemeErrorCodes.NotFound => ApiProblem.NotFound(httpContext, "Theme not found."),
+      ThemeErrorCodes.Forbidden => ApiProblem.Forbidden(httpContext, "Access denied."),
+      ThemeErrorCodes.AlreadyExists => ApiProblem.Conflict(httpContext, "Theme name already exists."),
+      _ => ApiProblem.Validation(
+        httpContext,
+        ApiProblem.RequestError("Validation failed."),
+        "Validation failed.")
     };
   }
 
   private static async Task<IResult> DeleteAsync(
+    HttpContext httpContext,
     Guid themeId,
     IThemeService themeService,
     ICurrentUserAccessor currentUserAccessor,
@@ -113,9 +127,12 @@ public static class ThemeEndpoints
     return result.ErrorCode switch
     {
       null => TypedResults.NoContent(),
-      ThemeErrorCodes.NotFound => TypedResults.NotFound(),
-      ThemeErrorCodes.Forbidden => TypedResults.Forbid(),
-      _ => TypedResults.BadRequest(new { error = "Validation failed." })
+      ThemeErrorCodes.NotFound => ApiProblem.NotFound(httpContext, "Theme not found."),
+      ThemeErrorCodes.Forbidden => ApiProblem.Forbidden(httpContext, "Access denied."),
+      _ => ApiProblem.Validation(
+        httpContext,
+        ApiProblem.RequestError("Validation failed."),
+        "Validation failed.")
     };
   }
 }

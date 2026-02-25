@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Wishlist.Api.Api.Auth;
+using Wishlist.Api.Api.Errors;
 using Wishlist.Api.Api.Public;
 using Wishlist.Api.Api.Themes;
 using Wishlist.Api.Api.Wishlists;
@@ -20,6 +21,7 @@ var connectionString = builder.Configuration.GetConnectionString("DefaultConnect
 
 builder.Services.AddDbContext<AppDbContext>(options =>
   options.UseSqlite(connectionString));
+builder.Services.AddProblemDetails();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddAuthModule(builder.Configuration);
 builder.Services.AddApiAuth(builder.Configuration);
@@ -32,9 +34,11 @@ builder.Services.AddWishlistSharingModule();
 var app = builder.Build();
 
 await app.ApplyMigrationsIfNeededAsync();
+app.UseMiddleware<ApiExceptionMiddleware>();
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseRateLimiter();
+app.UseApiProblemStatusCodePages();
 
 app.MapAuthEndpoints();
 app.MapWishlistEndpoints();

@@ -156,3 +156,29 @@ Rules:
 - each theme belongs to `ownerUserId`; only owner can read/update/delete
 - wishlist can reference only owner's `themeId` (checked in wishlist service)
 - `PATCH` behavior for `tokens`: replace whole object (no merge)
+
+## Error format (RFC7807)
+
+API returns errors in `application/problem+json` format.
+
+Mapping:
+
+- `validation_error` -> `400` with `errors` extension (`{ field: [messages] }`)
+- `unauthorized` -> `401`
+- `forbidden` -> `403`
+- `not_found` -> `404`
+
+Example (`400`):
+
+```json
+{
+  "type": "https://wishlist.local/problems/validation-error",
+  "title": "Validation error",
+  "status": 400,
+  "detail": "Validation failed.",
+  "instance": "/auth/register",
+  "errors": {
+    "email": ["Email format is invalid."]
+  }
+}
+```

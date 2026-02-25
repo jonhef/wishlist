@@ -1,4 +1,5 @@
 using Wishlist.Api.Features.Sharing;
+using Wishlist.Api.Api.Errors;
 
 namespace Wishlist.Api.Api.Public;
 
@@ -16,6 +17,7 @@ public static class PublicWishlistEndpoints
   }
 
   private static async Task<IResult> GetByTokenAsync(
+    HttpContext httpContext,
     string token,
     IWishlistShareService wishlistShareService,
     CancellationToken cancellationToken)
@@ -24,7 +26,7 @@ public static class PublicWishlistEndpoints
 
     if (!result.IsSuccess || result.Value is null)
     {
-      return TypedResults.NotFound();
+      return ApiProblem.NotFound(httpContext, "Wishlist not found.");
     }
 
     return TypedResults.Ok(result.Value);

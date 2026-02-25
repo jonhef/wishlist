@@ -1,4 +1,5 @@
 using Wishlist.Api.Api.Auth;
+using Wishlist.Api.Api.Errors;
 using Wishlist.Api.Features.Wishlists;
 
 namespace Wishlist.Api.Api.Wishlists;
@@ -25,6 +26,7 @@ public static class WishlistEndpoints
   }
 
   private static async Task<IResult> CreateAsync(
+    HttpContext httpContext,
     CreateWishlistRequestDto request,
     IWishlistService wishlistService,
     ICurrentUserAccessor currentUserAccessor,
@@ -38,8 +40,14 @@ public static class WishlistEndpoints
     return result.ErrorCode switch
     {
       null => TypedResults.Created($"/wishlists/{result.Value!.Id}", result.Value),
-      WishlistErrorCodes.ThemeNotAccessible => TypedResults.BadRequest(new { error = "themeId is not accessible." }),
-      _ => TypedResults.BadRequest(new { error = "Validation failed." })
+      WishlistErrorCodes.ThemeNotAccessible => ApiProblem.Validation(
+        httpContext,
+        ApiProblem.SingleFieldError("themeId", "themeId is not accessible."),
+        "Validation failed."),
+      _ => ApiProblem.Validation(
+        httpContext,
+        ApiProblem.RequestError("Validation failed."),
+        "Validation failed.")
     };
   }
 
@@ -59,6 +67,7 @@ public static class WishlistEndpoints
   }
 
   private static async Task<IResult> GetWishlistAsync(
+    HttpContext httpContext,
     Guid wishlistId,
     IWishlistService wishlistService,
     ICurrentUserAccessor currentUserAccessor,
@@ -71,18 +80,19 @@ public static class WishlistEndpoints
 
     if (result.ErrorCode == WishlistErrorCodes.NotFound)
     {
-      return TypedResults.NotFound();
+      return ApiProblem.NotFound(httpContext, "Wishlist not found.");
     }
 
     if (result.ErrorCode == WishlistErrorCodes.Forbidden)
     {
-      return TypedResults.Forbid();
+      return ApiProblem.Forbidden(httpContext, "Access denied.");
     }
 
     return TypedResults.Ok(result.Value);
   }
 
   private static async Task<IResult> PatchAsync(
+    HttpContext httpContext,
     Guid wishlistId,
     UpdateWishlistRequestDto request,
     IWishlistService wishlistService,
@@ -98,14 +108,21 @@ public static class WishlistEndpoints
     return result.ErrorCode switch
     {
       null => TypedResults.Ok(result.Value),
-      WishlistErrorCodes.NotFound => TypedResults.NotFound(),
-      WishlistErrorCodes.Forbidden => TypedResults.Forbid(),
-      WishlistErrorCodes.ThemeNotAccessible => TypedResults.BadRequest(new { error = "themeId is not accessible." }),
-      _ => TypedResults.BadRequest(new { error = "Validation failed." })
+      WishlistErrorCodes.NotFound => ApiProblem.NotFound(httpContext, "Wishlist not found."),
+      WishlistErrorCodes.Forbidden => ApiProblem.Forbidden(httpContext, "Access denied."),
+      WishlistErrorCodes.ThemeNotAccessible => ApiProblem.Validation(
+        httpContext,
+        ApiProblem.SingleFieldError("themeId", "themeId is not accessible."),
+        "Validation failed."),
+      _ => ApiProblem.Validation(
+        httpContext,
+        ApiProblem.RequestError("Validation failed."),
+        "Validation failed.")
     };
   }
 
   private static async Task<IResult> DeleteAsync(
+    HttpContext httpContext,
     Guid wishlistId,
     IWishlistService wishlistService,
     ICurrentUserAccessor currentUserAccessor,
@@ -118,12 +135,12 @@ public static class WishlistEndpoints
 
     if (result.ErrorCode == WishlistErrorCodes.NotFound)
     {
-      return TypedResults.NotFound();
+      return ApiProblem.NotFound(httpContext, "Wishlist not found.");
     }
 
     if (result.ErrorCode == WishlistErrorCodes.Forbidden)
     {
-      return TypedResults.Forbid();
+      return ApiProblem.Forbidden(httpContext, "Access denied.");
     }
 
     return TypedResults.NoContent();

@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Options;
+using Wishlist.Api.Api.Errors;
 
 namespace Wishlist.Api.Features.Auth;
 
@@ -17,6 +18,7 @@ public static class AuthEndpoints
   }
 
   private static async Task<IResult> RegisterAsync(
+    HttpContext httpContext,
     RegisterRequest request,
     IAuthService authService,
     CancellationToken cancellationToken)
@@ -30,10 +32,19 @@ public static class AuthEndpoints
 
     return result.ErrorCode switch
     {
-      "email_already_exists" => TypedResults.Conflict(new AuthErrorResponse("Email already exists.")),
-      "invalid_email" or "invalid_password" =>
-        TypedResults.BadRequest(new AuthErrorResponse(result.ErrorMessage ?? "Validation failed.")),
-      _ => TypedResults.BadRequest(new AuthErrorResponse("Validation failed."))
+      "email_already_exists" => ApiProblem.Conflict(httpContext, "Email already exists."),
+      "invalid_email" => ApiProblem.Validation(
+        httpContext,
+        ApiProblem.SingleFieldError("email", result.ErrorMessage ?? "Email format is invalid."),
+        "Validation failed."),
+      "invalid_password" => ApiProblem.Validation(
+        httpContext,
+        ApiProblem.SingleFieldError("password", result.ErrorMessage ?? "Password does not satisfy policy."),
+        "Validation failed."),
+      _ => ApiProblem.Validation(
+        httpContext,
+        ApiProblem.RequestError(result.ErrorMessage ?? "Validation failed."),
+        "Validation failed.")
     };
   }
 
@@ -52,7 +63,7 @@ public static class AuthEndpoints
 
     if (!result.IsSuccess || result.Value is null)
     {
-      return TypedResults.Unauthorized();
+      return ApiProblem.Unauthorized(httpContext, "Invalid credentials.");
     }
 
     var payload = ToTokensResponse(httpContext, authOptions.Value, result.Value);
@@ -76,7 +87,7 @@ public static class AuthEndpoints
 
     if (!result.IsSuccess || result.Value is null)
     {
-      return TypedResults.Unauthorized();
+      return ApiProblem.Unauthorized(httpContext, "Refresh token is invalid.");
     }
 
     var payload = ToTokensResponse(httpContext, authOptions.Value, result.Value);

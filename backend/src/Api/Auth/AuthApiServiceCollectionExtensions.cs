@@ -2,6 +2,7 @@ using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.IdentityModel.Tokens;
+using Wishlist.Api.Api.Errors;
 using Wishlist.Api.Features.Auth;
 
 namespace Wishlist.Api.Api.Auth;
@@ -30,6 +31,27 @@ public static class AuthApiServiceCollectionExtensions
           ValidAudience = authOptions.Audience,
           ValidateLifetime = true,
           ClockSkew = TimeSpan.FromSeconds(5)
+        };
+
+        options.Events = new JwtBearerEvents
+        {
+          OnChallenge = async context =>
+          {
+            context.HandleResponse();
+            if (!context.Response.HasStarted)
+            {
+              await ApiProblem.Unauthorized(context.HttpContext, "Authentication is required.")
+                .ExecuteAsync(context.HttpContext);
+            }
+          },
+          OnForbidden = async context =>
+          {
+            if (!context.Response.HasStarted)
+            {
+              await ApiProblem.Forbidden(context.HttpContext, "Access denied.")
+                .ExecuteAsync(context.HttpContext);
+            }
+          }
         };
       });
 

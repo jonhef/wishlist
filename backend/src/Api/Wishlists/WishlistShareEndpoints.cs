@@ -1,4 +1,5 @@
 using Wishlist.Api.Api.Auth;
+using Wishlist.Api.Api.Errors;
 using Wishlist.Api.Features.Sharing;
 
 namespace Wishlist.Api.Api.Wishlists;
@@ -31,13 +32,17 @@ public static class WishlistShareEndpoints
       {
         publicUrl = BuildPublicUrl(httpContext, result.Value!.Token)
       }),
-      WishlistShareErrorCodes.NotFound => TypedResults.NotFound(),
-      WishlistShareErrorCodes.Forbidden => TypedResults.Forbid(),
-      _ => TypedResults.BadRequest(new { error = "Validation failed." })
+      WishlistShareErrorCodes.NotFound => ApiProblem.NotFound(httpContext, "Wishlist not found."),
+      WishlistShareErrorCodes.Forbidden => ApiProblem.Forbidden(httpContext, "Access denied."),
+      _ => ApiProblem.Validation(
+        httpContext,
+        ApiProblem.RequestError("Validation failed."),
+        "Validation failed.")
     };
   }
 
   private static async Task<IResult> DisableAsync(
+    HttpContext httpContext,
     Guid wishlistId,
     IWishlistShareService wishlistShareService,
     ICurrentUserAccessor currentUserAccessor,
@@ -51,9 +56,12 @@ public static class WishlistShareEndpoints
     return result.ErrorCode switch
     {
       null => TypedResults.NoContent(),
-      WishlistShareErrorCodes.NotFound => TypedResults.NotFound(),
-      WishlistShareErrorCodes.Forbidden => TypedResults.Forbid(),
-      _ => TypedResults.BadRequest(new { error = "Validation failed." })
+      WishlistShareErrorCodes.NotFound => ApiProblem.NotFound(httpContext, "Wishlist not found."),
+      WishlistShareErrorCodes.Forbidden => ApiProblem.Forbidden(httpContext, "Access denied."),
+      _ => ApiProblem.Validation(
+        httpContext,
+        ApiProblem.RequestError("Validation failed."),
+        "Validation failed.")
     };
   }
 
