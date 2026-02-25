@@ -40,6 +40,7 @@ public static class WishlistEndpoints
     return result.ErrorCode switch
     {
       null => TypedResults.Created($"/wishlists/{result.Value!.Id}", result.Value),
+      WishlistErrorCodes.Forbidden => ApiProblem.Forbidden(httpContext, "Access denied."),
       WishlistErrorCodes.ThemeNotAccessible => ApiProblem.Validation(
         httpContext,
         ApiProblem.SingleFieldError("themeId", "themeId is not accessible."),

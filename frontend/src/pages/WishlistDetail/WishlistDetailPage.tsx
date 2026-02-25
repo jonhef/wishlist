@@ -27,7 +27,7 @@ const emptyDraft: ItemDraft = {
   name: "",
   url: "",
   priceAmount: "",
-  priceCurrency: "USD",
+  priceCurrency: "",
   priority: 1,
   notes: ""
 };
@@ -41,29 +41,52 @@ function draftFromItem(item: Item): ItemDraft {
     name: item.name,
     url: item.url ?? "",
     priceAmount: item.priceAmount !== null ? String(item.priceAmount) : "",
-    priceCurrency: item.priceCurrency ?? "USD",
+    priceCurrency: item.priceCurrency ?? "",
     priority: item.priority,
     notes: item.notes ?? ""
   };
 }
 
+function resolvePriceFields(draft: ItemDraft): { priceAmount: number | null; priceCurrency: string | null } {
+  const hasAmount = draft.priceAmount.trim().length > 0;
+  const normalizedAmount = hasAmount ? Number(draft.priceAmount) : null;
+
+  if (!hasAmount) {
+    return {
+      priceAmount: null,
+      priceCurrency: null
+    };
+  }
+
+  const normalizedCurrency = draft.priceCurrency.trim().toUpperCase();
+
+  return {
+    priceAmount: normalizedAmount,
+    priceCurrency: normalizedCurrency || "USD"
+  };
+}
+
 function itemPayloadFromDraft(draft: ItemDraft): CreateItemRequest {
+  const price = resolvePriceFields(draft);
+
   return {
     name: draft.name.trim(),
     url: draft.url.trim() || null,
-    priceAmount: draft.priceAmount.trim() ? Number(draft.priceAmount) : null,
-    priceCurrency: draft.priceCurrency.trim() || null,
+    priceAmount: price.priceAmount,
+    priceCurrency: price.priceCurrency,
     priority: Number(draft.priority),
     notes: draft.notes.trim() || null
   };
 }
 
 function itemPatchPayloadFromDraft(draft: ItemDraft): UpdateItemRequest {
+  const price = resolvePriceFields(draft);
+
   return {
     name: draft.name.trim(),
     url: draft.url.trim() || null,
-    priceAmount: draft.priceAmount.trim() ? Number(draft.priceAmount) : null,
-    priceCurrency: draft.priceCurrency.trim() || null,
+    priceAmount: price.priceAmount,
+    priceCurrency: price.priceCurrency,
     priority: Number(draft.priority),
     notes: draft.notes.trim() || null
   };
@@ -421,8 +444,8 @@ function ItemForm({ draft, onChange, onSubmit, formId = "create-item-form" }: It
         <input
           className="ui-input"
           id={`${formId}-priority`}
-          max={10}
-          min={1}
+          max={5}
+          min={0}
           onChange={(event) => onChange({ ...draft, priority: Number(event.target.value) })}
           type="range"
           value={draft.priority}

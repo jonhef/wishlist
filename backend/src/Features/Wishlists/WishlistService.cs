@@ -25,6 +25,11 @@ public sealed class WishlistService(AppDbContext dbContext, TimeProvider timePro
       return WishlistServiceResult<WishlistDto>.Failure(WishlistErrorCodes.ValidationFailed);
     }
 
+    if (!await OwnerExistsAsync(ownerUserId, cancellationToken))
+    {
+      return WishlistServiceResult<WishlistDto>.Failure(WishlistErrorCodes.Forbidden);
+    }
+
     if (!await ThemeIsAccessibleAsync(ownerUserId, request.ThemeId, cancellationToken))
     {
       return WishlistServiceResult<WishlistDto>.Failure(WishlistErrorCodes.ThemeNotAccessible);
@@ -44,7 +49,18 @@ public sealed class WishlistService(AppDbContext dbContext, TimeProvider timePro
     };
 
     _dbContext.Wishlists.Add(wishlist);
-    await _dbContext.SaveChangesAsync(cancellationToken);
+
+    try
+    {
+      await _dbContext.SaveChangesAsync(cancellationToken);
+    }
+    catch (DbUpdateException ex) when (IsForeignKeyConstraint(ex))
+    {
+      return WishlistServiceResult<WishlistDto>.Failure(
+        request.ThemeId.HasValue
+          ? WishlistErrorCodes.ThemeNotAccessible
+          : WishlistErrorCodes.Forbidden);
+    }
 
     return WishlistServiceResult<WishlistDto>.Success(ToDto(wishlist, itemsCount: 0));
   }
@@ -200,7 +216,14 @@ public sealed class WishlistService(AppDbContext dbContext, TimeProvider timePro
 
     wishlist.UpdatedAtUtc = _timeProvider.GetUtcNow().UtcDateTime;
 
-    await _dbContext.SaveChangesAsync(cancellationToken);
+    try
+    {
+      await _dbContext.SaveChangesAsync(cancellationToken);
+    }
+    catch (DbUpdateException ex) when (IsForeignKeyConstraint(ex))
+    {
+      return WishlistServiceResult<WishlistDto>.Failure(WishlistErrorCodes.ThemeNotAccessible);
+    }
 
     var itemsCount = await _dbContext.WishItems
       .AsNoTracking()
@@ -247,6 +270,13 @@ public sealed class WishlistService(AppDbContext dbContext, TimeProvider timePro
     return await _dbContext.Themes.AnyAsync(
       theme => theme.Id == themeId.Value && theme.OwnerUserId == ownerUserId,
       cancellationToken);
+  }
+
+  private async Task<bool> OwnerExistsAsync(Guid ownerUserId, CancellationToken cancellationToken)
+  {
+    return await _dbContext.Users
+      .AsNoTracking()
+      .AnyAsync(user => user.Id == ownerUserId, cancellationToken);
   }
 
   private static string? NormalizeOptionalString(string? value)
@@ -325,6 +355,11 @@ public sealed class WishlistService(AppDbContext dbContext, TimeProvider timePro
       wishlist.ThemeId,
       wishlist.UpdatedAtUtc,
       itemsCount);
+  }
+
+  private static bool IsForeignKeyConstraint(DbUpdateException ex)
+  {
+    return ex.InnerException?.Message.Contains("FOREIGN KEY", StringComparison.OrdinalIgnoreCase) == true;
   }
 
   private sealed record WishlistProjection(

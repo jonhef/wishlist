@@ -191,6 +191,22 @@ public sealed class WishlistServiceTests
     Assert.Equal(WishlistErrorCodes.ThemeNotAccessible, result.ErrorCode);
   }
 
+  [Fact]
+  public async Task CreateAsync_WithMissingOwnerUser_ReturnsForbidden()
+  {
+    await using var dbContext = CreateDbContext();
+    var service = new WishlistService(dbContext, new FakeTimeProvider(DateTime.UtcNow));
+    var missingOwnerId = Guid.NewGuid();
+
+    var result = await service.CreateAsync(
+      missingOwnerId,
+      new CreateWishlistRequestDto("Wishlist", null, null),
+      CancellationToken.None);
+
+    Assert.False(result.IsSuccess);
+    Assert.Equal(WishlistErrorCodes.Forbidden, result.ErrorCode);
+  }
+
   private static AppDbContext CreateDbContext()
   {
     var options = new DbContextOptionsBuilder<AppDbContext>()
