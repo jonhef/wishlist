@@ -1,11 +1,22 @@
 services:
   backend:
-    image: node:20-alpine
+    image: mcr.microsoft.com/dotnet/sdk:10.0
     working_dir: /app
-    command: ["node", "--watch", "backend/src/index.mjs"]
+    command:
+      [
+        "dotnet",
+        "watch",
+        "run",
+        "--project",
+        "backend/src/Wishlist.Api.csproj",
+        "--urls",
+        "http://0.0.0.0:8080"
+      ]
     environment:
       HOST: 0.0.0.0
       PORT: 8080
+      ASPNETCORE_ENVIRONMENT: Development
+      APPLY_MIGRATIONS_ON_STARTUP: "true"
     volumes:
       - .:/app
     ports:
@@ -14,7 +25,12 @@ services:
   frontend:
     image: node:20-alpine
     working_dir: /app
-    command: ["node", "--watch", "frontend/dev-server.mjs"]
+    command:
+      [
+        "sh",
+        "-c",
+        "npm install --workspaces --include-workspace-root=false && npm --workspace frontend run dev -- --host 0.0.0.0 --port 5173"
+      ]
     environment:
       HOST: 0.0.0.0
       PORT: 5173

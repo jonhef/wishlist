@@ -6,6 +6,8 @@ services:
     environment:
       HOST: 0.0.0.0
       PORT: 8080
+      ASPNETCORE_ENVIRONMENT: Development
+      APPLY_MIGRATIONS_ON_STARTUP: "true"
     ports:
       - "18080:8080"
 
