@@ -182,3 +182,19 @@ Example (`400`):
   }
 }
 ```
+
+## Observability v1
+
+- Structured logging via `Serilog` (console sink).
+- Correlation id per request:
+  - canonical id is request trace id
+  - returned in response header `X-Correlation-ID`
+- Request log includes:
+  - `RequestMethod`
+  - `RequestPath` (route template when available)
+  - `StatusCode`
+  - duration (`Elapsed`)
+  - `UserId` (`anonymous` for unauthenticated)
+  - `CorrelationId`
+- Exceptions are handled by middleware and logged with stack trace + correlation id.
+- Passwords/tokens are not logged by middleware (no body/header logging; route template is used to avoid leaking public token values).

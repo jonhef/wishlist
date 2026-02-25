@@ -1,6 +1,8 @@
 using Microsoft.EntityFrameworkCore;
+using Serilog;
 using Wishlist.Api.Api.Auth;
 using Wishlist.Api.Api.Errors;
+using Wishlist.Api.Api.Observability;
 using Wishlist.Api.Api.Public;
 using Wishlist.Api.Api.Themes;
 using Wishlist.Api.Api.Wishlists;
@@ -14,6 +16,14 @@ using Wishlist.Api.Infrastructure.Persistence;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Configuration.AddEnvironmentVariables();
+builder.Host.UseSerilog((context, services, configuration) =>
+{
+  configuration
+    .ReadFrom.Configuration(context.Configuration)
+    .ReadFrom.Services(services)
+    .Enrich.FromLogContext()
+    .Enrich.WithProperty("Application", "wishlist-api");
+});
 
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
   ?? builder.Configuration["DB_CONNECTION_STRING"]
@@ -34,6 +44,8 @@ builder.Services.AddWishlistSharingModule();
 var app = builder.Build();
 
 await app.ApplyMigrationsIfNeededAsync();
+app.UseMiddleware<CorrelationIdMiddleware>();
+app.UseApiRequestLogging();
 app.UseMiddleware<ApiExceptionMiddleware>();
 app.UseAuthentication();
 app.UseAuthorization();
