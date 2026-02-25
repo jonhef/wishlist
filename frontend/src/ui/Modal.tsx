@@ -21,6 +21,11 @@ const FOCUSABLE_SELECTOR = [
 
 export function Modal({ title, isOpen, onClose, children, footer }: ModalProps): JSX.Element | null {
   const bodyRef = useRef<HTMLDivElement>(null);
+  const onCloseRef = useRef(onClose);
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -42,7 +47,7 @@ export function Modal({ title, isOpen, onClose, children, footer }: ModalProps):
     const onKeyDown = (event: KeyboardEvent): void => {
       if (event.key === "Escape") {
         event.preventDefault();
-        onClose();
+        onCloseRef.current();
         return;
       }
 
@@ -70,7 +75,7 @@ export function Modal({ title, isOpen, onClose, children, footer }: ModalProps):
     return () => {
       document.removeEventListener("keydown", onKeyDown);
     };
-  }, [isOpen, onClose]);
+  }, [isOpen]);
 
   if (!isOpen) {
     return null;
