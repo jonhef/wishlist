@@ -11,7 +11,7 @@ public sealed record PublicWishlistItemDto(
   string? Url,
   decimal? PriceAmount,
   string? PriceCurrency,
-  int Priority,
+  decimal Priority,
   string? Notes);
 
 public sealed record PublicWishlistDto(

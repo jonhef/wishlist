@@ -186,6 +186,159 @@ public sealed class ItemServiceTests
     Assert.Equal(ItemErrorCodes.ValidationFailed, result.ErrorCode);
   }
 
+  [Fact]
+  public async Task ListAsync_SortsByPriorityThenCreatedAtDesc()
+  {
+    await using var dbContext = CreateDbContext();
+    var service = new ItemService(dbContext, new FakeTimeProvider(DateTime.UtcNow));
+
+    var owner = CreateUser("owner-sorting@example.com");
+    var wishlist = CreateWishlist(owner.Id, "Main");
+    var baseTime = DateTime.UtcNow;
+
+    dbContext.Users.Add(owner);
+    dbContext.Wishlists.Add(wishlist);
+    dbContext.WishItems.AddRange(
+      new WishItem
+      {
+        WishlistId = wishlist.Id,
+        Name = "Low",
+        Priority = 100m,
+        CreatedAtUtc = baseTime.AddMinutes(3),
+        UpdatedAtUtc = baseTime.AddMinutes(10),
+        IsDeleted = false
+      },
+      new WishItem
+      {
+        WishlistId = wishlist.Id,
+        Name = "High-Older",
+        Priority = 200m,
+        CreatedAtUtc = baseTime.AddMinutes(1),
+        UpdatedAtUtc = baseTime.AddMinutes(11),
+        IsDeleted = false
+      },
+      new WishItem
+      {
+        WishlistId = wishlist.Id,
+        Name = "High-Newer",
+        Priority = 200m,
+        CreatedAtUtc = baseTime.AddMinutes(2),
+        UpdatedAtUtc = baseTime.AddMinutes(9),
+        IsDeleted = false
+      });
+    await dbContext.SaveChangesAsync();
+
+    var result = await service.ListAsync(owner.Id, wishlist.Id, new ItemListQuery(null, 50), CancellationToken.None);
+
+    Assert.True(result.IsSuccess);
+    Assert.NotNull(result.Value);
+    Assert.Equal(
+      new[] { "High-Newer", "High-Older", "Low" },
+      result.Value!.Items.Select(x => x.Name).ToArray());
+  }
+
+  [Fact]
+  public async Task CreateAsync_WithoutPriority_PlacesItemAtBottom()
+  {
+    await using var dbContext = CreateDbContext();
+    var service = new ItemService(dbContext, new FakeTimeProvider(DateTime.UtcNow));
+
+    var owner = CreateUser("owner-default-priority@example.com");
+    var wishlist = CreateWishlist(owner.Id, "Main");
+    var now = DateTime.UtcNow;
+
+    dbContext.Users.Add(owner);
+    dbContext.Wishlists.Add(wishlist);
+    dbContext.WishItems.AddRange(
+      new WishItem
+      {
+        WishlistId = wishlist.Id,
+        Name = "Top",
+        Priority = 4096m,
+        CreatedAtUtc = now,
+        UpdatedAtUtc = now,
+        IsDeleted = false
+      },
+      new WishItem
+      {
+        WishlistId = wishlist.Id,
+        Name = "Bottom",
+        Priority = 1024m,
+        CreatedAtUtc = now.AddMinutes(1),
+        UpdatedAtUtc = now.AddMinutes(1),
+        IsDeleted = false
+      });
+    await dbContext.SaveChangesAsync();
+
+    var created = await service.CreateAsync(
+      owner.Id,
+      wishlist.Id,
+      new CreateItemRequestDto("Auto-priority", null, null, null, null, null),
+      CancellationToken.None);
+
+    Assert.True(created.IsSuccess);
+    Assert.NotNull(created.Value);
+    Assert.Equal(0m, created.Value!.Priority);
+  }
+
+  [Fact]
+  public async Task RebalanceAsync_ReassignsPrioritiesAndPreservesOrder()
+  {
+    await using var dbContext = CreateDbContext();
+    var service = new ItemService(dbContext, new FakeTimeProvider(DateTime.UtcNow));
+
+    var owner = CreateUser("owner-rebalance@example.com");
+    var wishlist = CreateWishlist(owner.Id, "Main");
+    var baseTime = DateTime.UtcNow;
+
+    dbContext.Users.Add(owner);
+    dbContext.Wishlists.Add(wishlist);
+    dbContext.WishItems.AddRange(
+      new WishItem
+      {
+        WishlistId = wishlist.Id,
+        Name = "Top-Newer",
+        Priority = 10.000000001m,
+        CreatedAtUtc = baseTime.AddMinutes(2),
+        UpdatedAtUtc = baseTime.AddMinutes(2),
+        IsDeleted = false
+      },
+      new WishItem
+      {
+        WishlistId = wishlist.Id,
+        Name = "Top-Older",
+        Priority = 10.000000001m,
+        CreatedAtUtc = baseTime.AddMinutes(1),
+        UpdatedAtUtc = baseTime.AddMinutes(1),
+        IsDeleted = false
+      },
+      new WishItem
+      {
+        WishlistId = wishlist.Id,
+        Name = "Bottom",
+        Priority = 9.999999999m,
+        CreatedAtUtc = baseTime.AddMinutes(3),
+        UpdatedAtUtc = baseTime.AddMinutes(3),
+        IsDeleted = false
+      });
+    await dbContext.SaveChangesAsync();
+
+    var rebalance = await service.RebalanceAsync(owner.Id, wishlist.Id, CancellationToken.None);
+    Assert.True(rebalance.IsSuccess);
+    Assert.NotNull(rebalance.Value);
+    Assert.Equal(3, rebalance.Value!.RebalancedCount);
+
+    var listed = await service.ListAsync(owner.Id, wishlist.Id, new ItemListQuery(null, 50), CancellationToken.None);
+    Assert.True(listed.IsSuccess);
+    Assert.NotNull(listed.Value);
+    Assert.Equal(
+      new[] { "Top-Newer", "Top-Older", "Bottom" },
+      listed.Value!.Items.Select(x => x.Name).ToArray());
+    Assert.Equal(
+      new[] { 3072m, 2048m, 1024m },
+      listed.Value.Items.Select(x => x.Priority).ToArray());
+  }
+
   private static AppDbContext CreateDbContext()
   {
     var options = new DbContextOptionsBuilder<AppDbContext>()

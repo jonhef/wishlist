@@ -16,7 +16,7 @@ public sealed class WishItem
 
   public string? PriceCurrency { get; set; }
 
-  public int Priority { get; set; }
+  public decimal Priority { get; set; }
 
   public string? Notes { get; set; }
 

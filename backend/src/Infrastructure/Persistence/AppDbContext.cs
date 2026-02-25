@@ -77,7 +77,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
 
       entity.HasKey(item => item.Id);
 
-      entity.HasIndex(item => new { item.WishlistId, item.UpdatedAtUtc, item.Id });
+      entity.HasIndex(item => new { item.WishlistId, item.Priority, item.CreatedAtUtc, item.Id });
 
       entity.Property(item => item.Name)
         .IsRequired()
@@ -93,6 +93,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         .HasMaxLength(3);
 
       entity.Property(item => item.Priority)
+        .HasColumnType("numeric(38,18)")
         .IsRequired();
 
       entity.Property(item => item.Notes)

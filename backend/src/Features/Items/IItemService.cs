@@ -26,4 +26,9 @@ public interface IItemService
     Guid wishlistId,
     int itemId,
     CancellationToken cancellationToken);
+
+  Task<ItemServiceResult<RebalanceItemsResultDto>> RebalanceAsync(
+    Guid ownerUserId,
+    Guid wishlistId,
+    CancellationToken cancellationToken);
 }

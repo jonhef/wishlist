@@ -28,7 +28,15 @@ public sealed class ItemService(AppDbContext dbContext, TimeProvider timeProvide
       return ItemServiceResult<ItemDto>.Failure(wishlistResult.ErrorCode!);
     }
 
-    var normalized = NormalizeAndValidate(request.Name, request.Url, request.PriceAmount, request.PriceCurrency, request.Priority, request.Notes);
+    var resolvedPriority = request.Priority ?? await ResolveDefaultCreatePriorityAsync(wishlistId, cancellationToken);
+
+    var normalized = NormalizeAndValidate(
+      request.Name,
+      request.Url,
+      request.PriceAmount,
+      request.PriceCurrency,
+      resolvedPriority,
+      request.Notes);
     if (!normalized.IsSuccess)
     {
       return ItemServiceResult<ItemDto>.Failure(ItemErrorCodes.ValidationFailed);
@@ -74,16 +82,20 @@ public sealed class ItemService(AppDbContext dbContext, TimeProvider timeProvide
       .AsNoTracking()
       .Where(item => item.WishlistId == wishlistId && !item.IsDeleted);
 
-    var hasCursor = TryParseCursor(query.Cursor, out var cursorUpdatedAt, out var cursorItemId);
+    var hasCursor = TryParseCursor(query.Cursor, out var cursorPriority, out var cursorCreatedAt, out var cursorItemId);
     if (hasCursor)
     {
-      baseQuery = baseQuery.Where(item => item.UpdatedAtUtc <= cursorUpdatedAt);
+      baseQuery = baseQuery.Where(item =>
+        item.Priority < cursorPriority
+        || (item.Priority == cursorPriority && item.CreatedAtUtc < cursorCreatedAt)
+        || (item.Priority == cursorPriority && item.CreatedAtUtc == cursorCreatedAt && item.Id < cursorItemId));
     }
 
-    var candidates = await baseQuery
-      .OrderByDescending(item => item.UpdatedAtUtc)
+    var page = await baseQuery
+      .OrderByDescending(item => item.Priority)
+      .ThenByDescending(item => item.CreatedAtUtc)
       .ThenByDescending(item => item.Id)
-      .Take(limit + 256)
+      .Take(limit + 1)
       .Select(item => new ItemProjection(
         item.Id,
         item.WishlistId,
@@ -93,19 +105,10 @@ public sealed class ItemService(AppDbContext dbContext, TimeProvider timeProvide
         item.PriceCurrency,
         item.Priority,
         item.Notes,
+        item.CreatedAtUtc,
         item.UpdatedAtUtc))
       .ToListAsync(cancellationToken);
 
-    if (hasCursor)
-    {
-      candidates = candidates
-        .Where(item =>
-          item.UpdatedAtUtc < cursorUpdatedAt
-          || (item.UpdatedAtUtc == cursorUpdatedAt && item.Id < cursorItemId))
-        .ToList();
-    }
-
-    var page = candidates.Take(limit + 1).ToList();
     var hasNext = page.Count > limit;
     if (hasNext)
     {
@@ -126,7 +129,7 @@ public sealed class ItemService(AppDbContext dbContext, TimeProvider timeProvide
       .ToList();
 
     var nextCursor = hasNext && items.Count > 0
-      ? EncodeCursor(items[^1].UpdatedAtUtc, items[^1].Id)
+      ? EncodeCursor(page[^1].Priority, page[^1].CreatedAtUtc, page[^1].Id)
       : null;
 
     return ItemServiceResult<ItemListResult>.Success(new ItemListResult(items, nextCursor));
@@ -221,6 +224,82 @@ public sealed class ItemService(AppDbContext dbContext, TimeProvider timeProvide
     return ItemServiceResult<bool>.Success(true);
   }
 
+  public async Task<ItemServiceResult<RebalanceItemsResultDto>> RebalanceAsync(
+    Guid ownerUserId,
+    Guid wishlistId,
+    CancellationToken cancellationToken)
+  {
+    var wishlistResult = await ResolveOwnerWishlistAsync(ownerUserId, wishlistId, cancellationToken);
+    if (!wishlistResult.IsSuccess)
+    {
+      return ItemServiceResult<RebalanceItemsResultDto>.Failure(wishlistResult.ErrorCode!);
+    }
+
+    var hasRelationalTransactions = _dbContext.Database.IsRelational();
+    var transaction = hasRelationalTransactions
+      ? await _dbContext.Database.BeginTransactionAsync(cancellationToken)
+      : null;
+
+    try
+    {
+      var items = await _dbContext.WishItems
+        .Where(item => item.WishlistId == wishlistId && !item.IsDeleted)
+        .OrderByDescending(item => item.Priority)
+        .ThenByDescending(item => item.CreatedAtUtc)
+        .ThenByDescending(item => item.Id)
+        .ToListAsync(cancellationToken);
+
+      if (items.Count == 0)
+      {
+        if (transaction is not null)
+        {
+          await transaction.CommitAsync(cancellationToken);
+        }
+
+        return ItemServiceResult<RebalanceItemsResultDto>.Success(new RebalanceItemsResultDto(0));
+      }
+
+      var now = _timeProvider.GetUtcNow().UtcDateTime;
+      for (var index = 0; index < items.Count; index++)
+      {
+        items[index].Priority = (items.Count - index) * ItemPriorityMath.DefaultStep;
+        items[index].UpdatedAtUtc = now;
+      }
+
+      await _dbContext.SaveChangesAsync(cancellationToken);
+
+      if (transaction is not null)
+      {
+        await transaction.CommitAsync(cancellationToken);
+      }
+
+      return ItemServiceResult<RebalanceItemsResultDto>.Success(new RebalanceItemsResultDto(items.Count));
+    }
+    finally
+    {
+      if (transaction is not null)
+      {
+        await transaction.DisposeAsync();
+      }
+    }
+  }
+
+  private async Task<decimal> ResolveDefaultCreatePriorityAsync(
+    Guid wishlistId,
+    CancellationToken cancellationToken)
+  {
+    var bottomPriority = await _dbContext.WishItems
+      .AsNoTracking()
+      .Where(item => item.WishlistId == wishlistId && !item.IsDeleted)
+      .OrderBy(item => item.Priority)
+      .ThenBy(item => item.CreatedAtUtc)
+      .ThenBy(item => item.Id)
+      .Select(item => (decimal?)item.Priority)
+      .FirstOrDefaultAsync(cancellationToken);
+
+    return ItemPriorityMath.ComputeInsertPriority(bottomPriority, null, ItemPriorityMath.DefaultStep);
+  }
+
   private async Task<ItemServiceResult<bool>> ResolveOwnerWishlistAsync(
     Guid ownerUserId,
     Guid wishlistId,
@@ -248,7 +327,7 @@ public sealed class ItemService(AppDbContext dbContext, TimeProvider timeProvide
     string? url,
     decimal? priceAmount,
     string? priceCurrency,
-    int priority,
+    decimal priority,
     string? notes)
   {
     if (string.IsNullOrWhiteSpace(name))
@@ -281,11 +360,6 @@ public sealed class ItemService(AppDbContext dbContext, TimeProvider timeProvide
     }
 
     if (priceAmount.HasValue && priceAmount.Value < 0)
-    {
-      return ItemValidationResult.Failure();
-    }
-
-    if (priority is < 0 or > 5)
     {
       return ItemValidationResult.Failure();
     }
@@ -368,15 +442,20 @@ public sealed class ItemService(AppDbContext dbContext, TimeProvider timeProvide
     return Math.Min(limit.Value, MaxLimit);
   }
 
-  private static string EncodeCursor(DateTime updatedAtUtc, int itemId)
+  private static string EncodeCursor(decimal priority, DateTime createdAtUtc, int itemId)
   {
-    var raw = $"{updatedAtUtc.Ticks}:{itemId}";
+    var raw = $"{priority.ToString(CultureInfo.InvariantCulture)}:{createdAtUtc.Ticks}:{itemId}";
     return WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(raw));
   }
 
-  private static bool TryParseCursor(string? cursor, out DateTime updatedAtUtc, out int itemId)
+  private static bool TryParseCursor(
+    string? cursor,
+    out decimal priority,
+    out DateTime createdAtUtc,
+    out int itemId)
   {
-    updatedAtUtc = default;
+    priority = default;
+    createdAtUtc = default;
     itemId = default;
 
     if (string.IsNullOrWhiteSpace(cursor))
@@ -388,24 +467,29 @@ public sealed class ItemService(AppDbContext dbContext, TimeProvider timeProvide
     {
       var bytes = WebEncoders.Base64UrlDecode(cursor);
       var raw = Encoding.UTF8.GetString(bytes);
-      var parts = raw.Split(':', 2, StringSplitOptions.RemoveEmptyEntries);
+      var parts = raw.Split(':', 3, StringSplitOptions.RemoveEmptyEntries);
 
-      if (parts.Length != 2)
+      if (parts.Length != 3)
       {
         return false;
       }
 
-      if (!long.TryParse(parts[0], NumberStyles.Integer, CultureInfo.InvariantCulture, out var ticks))
+      if (!decimal.TryParse(parts[0], NumberStyles.Number, CultureInfo.InvariantCulture, out priority))
       {
         return false;
       }
 
-      if (!int.TryParse(parts[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out itemId))
+      if (!long.TryParse(parts[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out var ticks))
       {
         return false;
       }
 
-      updatedAtUtc = new DateTime(ticks, DateTimeKind.Utc);
+      if (!int.TryParse(parts[2], NumberStyles.Integer, CultureInfo.InvariantCulture, out itemId))
+      {
+        return false;
+      }
+
+      createdAtUtc = new DateTime(ticks, DateTimeKind.Utc);
       return true;
     }
     catch
@@ -435,8 +519,9 @@ public sealed class ItemService(AppDbContext dbContext, TimeProvider timeProvide
     string? Url,
     decimal? PriceAmount,
     string? PriceCurrency,
-    int Priority,
+    decimal Priority,
     string? Notes,
+    DateTime CreatedAtUtc,
     DateTime UpdatedAtUtc);
 
   private sealed record ItemValidationResult(
@@ -445,7 +530,7 @@ public sealed class ItemService(AppDbContext dbContext, TimeProvider timeProvide
     string? Url,
     decimal? PriceAmount,
     string? PriceCurrency,
-    int Priority,
+    decimal Priority,
     string? Notes)
   {
     public static ItemValidationResult Success(
@@ -453,7 +538,7 @@ public sealed class ItemService(AppDbContext dbContext, TimeProvider timeProvide
       string? url,
       decimal? priceAmount,
       string? priceCurrency,
-      int priority,
+      decimal priority,
       string? notes) =>
       new(true, name, url, priceAmount, priceCurrency, priority, notes);
 

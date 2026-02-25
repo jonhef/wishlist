@@ -99,6 +99,7 @@ Endpoints:
 
 - `POST /wishlists/{id}/items`
 - `GET /wishlists/{id}/items?cursor=...&limit=...`
+- `POST /wishlists/{id}/items/rebalance`
 - `PATCH /wishlists/{id}/items/{itemId}`
 - `DELETE /wishlists/{id}/items/{itemId}`
 
@@ -107,12 +108,15 @@ Item fields:
 - `name` (required)
 - `url` (optional)
 - `priceAmount` / `priceCurrency` (optional pair)
-- `priority` (`0..5`)
+- `priority` (optional `decimal`, higher = more important)
 - `notes` (optional, max 2000)
 
 Rules:
 
 - cannot add/list/update/delete items in foreign wishlist (`403`)
+- `POST /items` without `priority` appends to bottom (`bottom - 1024`, empty list -> `0`)
+- list sorting is fixed and stable: `priority DESC`, then `createdAtUtc DESC`, then `id DESC`
+- `POST /items/rebalance` reassigns priorities with large gaps while preserving visible order
 - item list excludes soft-deleted items
 - URL without scheme is normalized by prepending `https://`
 - `priceCurrency` without `priceAmount` returns `400`
@@ -221,7 +225,7 @@ Example (`400`):
 Main indexes used by list/read paths:
 
 - `wishlists(owner_user_id, updated_at_utc, id)`
-- `wish_items(wishlist_id, updated_at_utc, id)`
+- `wish_items(wishlist_id, priority, created_at_utc, id)`
 - `themes(owner_user_id, created_at_utc, id)`
 - `wishlists(share_token_hash)` for public token lookup
 
@@ -240,7 +244,7 @@ EXPLAIN QUERY PLAN
 SELECT Id, WishlistId, Name, UpdatedAtUtc
 FROM wish_items
 WHERE WishlistId = '00000000-0000-0000-0000-000000000000' AND IsDeleted = 0
-ORDER BY UpdatedAtUtc DESC, Id DESC
+ORDER BY Priority DESC, CreatedAtUtc DESC, Id DESC
 LIMIT 51;
 
 EXPLAIN QUERY PLAN

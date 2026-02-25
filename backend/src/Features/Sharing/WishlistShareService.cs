@@ -92,16 +92,19 @@ public sealed class WishlistShareService(AppDbContext dbContext) : IWishlistShar
     var itemsQuery = _dbContext.WishItems
       .AsNoTracking()
       .Where(x => x.WishlistId == wishlist.Id && !x.IsDeleted)
-      .OrderByDescending(x => x.UpdatedAtUtc)
+      .OrderByDescending(x => x.Priority)
+      .ThenByDescending(x => x.CreatedAtUtc)
       .ThenByDescending(x => x.Id);
 
-    var hasCursor = TryParseCursor(query.Cursor, out var cursorUpdatedAt, out var cursorId);
+    var hasCursor = TryParseCursor(query.Cursor, out var cursorPriority, out var cursorCreatedAt, out var cursorId);
     if (hasCursor)
     {
       itemsQuery = itemsQuery.Where(item =>
-        item.UpdatedAtUtc < cursorUpdatedAt
-        || (item.UpdatedAtUtc == cursorUpdatedAt && item.Id < cursorId))
-      .OrderByDescending(x => x.UpdatedAtUtc)
+        item.Priority < cursorPriority
+        || (item.Priority == cursorPriority && item.CreatedAtUtc < cursorCreatedAt)
+        || (item.Priority == cursorPriority && item.CreatedAtUtc == cursorCreatedAt && item.Id < cursorId))
+      .OrderByDescending(x => x.Priority)
+      .ThenByDescending(x => x.CreatedAtUtc)
       .ThenByDescending(x => x.Id);
     }
 
@@ -114,7 +117,7 @@ public sealed class WishlistShareService(AppDbContext dbContext) : IWishlistShar
         x.PriceCurrency,
         x.Priority,
         x.Notes,
-        x.UpdatedAtUtc,
+        x.CreatedAtUtc,
         x.Id))
       .ToListAsync(cancellationToken);
 
@@ -135,7 +138,7 @@ public sealed class WishlistShareService(AppDbContext dbContext) : IWishlistShar
       .ToList();
 
     var nextCursor = hasNext && candidates.Count > 0
-      ? EncodeCursor(candidates[^1].UpdatedAtUtc, candidates[^1].Id)
+      ? EncodeCursor(candidates[^1].Priority, candidates[^1].CreatedAtUtc, candidates[^1].Id)
       : null;
 
     var themeTokens = await ResolveThemeTokensAsync(wishlist.ThemeId, wishlist.OwnerUserId, cancellationToken);
@@ -192,15 +195,20 @@ public sealed class WishlistShareService(AppDbContext dbContext) : IWishlistShar
     return Math.Min(limit.Value, MaxLimit);
   }
 
-  private static string EncodeCursor(DateTime updatedAtUtc, int itemId)
+  private static string EncodeCursor(decimal priority, DateTime createdAtUtc, int itemId)
   {
-    var raw = $"{updatedAtUtc.Ticks}:{itemId}";
+    var raw = $"{priority.ToString(CultureInfo.InvariantCulture)}:{createdAtUtc.Ticks}:{itemId}";
     return WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(raw));
   }
 
-  private static bool TryParseCursor(string? cursor, out DateTime updatedAtUtc, out int itemId)
+  private static bool TryParseCursor(
+    string? cursor,
+    out decimal priority,
+    out DateTime createdAtUtc,
+    out int itemId)
   {
-    updatedAtUtc = default;
+    priority = default;
+    createdAtUtc = default;
     itemId = default;
 
     if (string.IsNullOrWhiteSpace(cursor))
@@ -212,24 +220,29 @@ public sealed class WishlistShareService(AppDbContext dbContext) : IWishlistShar
     {
       var bytes = WebEncoders.Base64UrlDecode(cursor);
       var raw = Encoding.UTF8.GetString(bytes);
-      var parts = raw.Split(':', 2, StringSplitOptions.RemoveEmptyEntries);
+      var parts = raw.Split(':', 3, StringSplitOptions.RemoveEmptyEntries);
 
-      if (parts.Length != 2)
+      if (parts.Length != 3)
       {
         return false;
       }
 
-      if (!long.TryParse(parts[0], NumberStyles.Integer, CultureInfo.InvariantCulture, out var ticks))
+      if (!decimal.TryParse(parts[0], NumberStyles.Number, CultureInfo.InvariantCulture, out priority))
       {
         return false;
       }
 
-      if (!int.TryParse(parts[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out itemId))
+      if (!long.TryParse(parts[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out var ticks))
       {
         return false;
       }
 
-      updatedAtUtc = new DateTime(ticks, DateTimeKind.Utc);
+      if (!int.TryParse(parts[2], NumberStyles.Integer, CultureInfo.InvariantCulture, out itemId))
+      {
+        return false;
+      }
+
+      createdAtUtc = new DateTime(ticks, DateTimeKind.Utc);
       return true;
     }
     catch
@@ -243,8 +256,8 @@ public sealed class WishlistShareService(AppDbContext dbContext) : IWishlistShar
     string? Url,
     decimal? PriceAmount,
     string? PriceCurrency,
-    int Priority,
+    decimal Priority,
     string? Notes,
-    DateTime UpdatedAtUtc,
+    DateTime CreatedAtUtc,
     int Id);
 }

@@ -10,6 +10,7 @@ public static class WishlistItemEndpoints
   {
     group.MapPost("/{wishlistId:guid}/items", CreateAsync);
     group.MapGet("/{wishlistId:guid}/items", ListAsync);
+    group.MapPost("/{wishlistId:guid}/items/rebalance", RebalanceAsync);
     group.MapPatch("/{wishlistId:guid}/items/{itemId:int}", PatchAsync);
     group.MapDelete("/{wishlistId:guid}/items/{itemId:int}", DeleteAsync);
 
@@ -89,6 +90,30 @@ public static class WishlistItemEndpoints
     {
       null => TypedResults.Ok(result.Value),
       ItemErrorCodes.NotFound => ApiProblem.NotFound(httpContext, "Item not found."),
+      ItemErrorCodes.Forbidden => ApiProblem.Forbidden(httpContext, "Access denied."),
+      _ => ApiProblem.Validation(
+        httpContext,
+        ApiProblem.RequestError("Validation failed."),
+        "Validation failed.")
+    };
+  }
+
+  private static async Task<IResult> RebalanceAsync(
+    HttpContext httpContext,
+    Guid wishlistId,
+    IItemService itemService,
+    ICurrentUserAccessor currentUserAccessor,
+    CancellationToken cancellationToken)
+  {
+    var result = await itemService.RebalanceAsync(
+      currentUserAccessor.GetRequiredUserId(),
+      wishlistId,
+      cancellationToken);
+
+    return result.ErrorCode switch
+    {
+      null => TypedResults.Ok(result.Value),
+      ItemErrorCodes.NotFound => ApiProblem.NotFound(httpContext, "Wishlist not found."),
       ItemErrorCodes.Forbidden => ApiProblem.Forbidden(httpContext, "Access denied."),
       _ => ApiProblem.Validation(
         httpContext,

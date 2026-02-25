@@ -5,7 +5,7 @@ public sealed record CreateItemRequestDto(
   string? Url,
   decimal? PriceAmount,
   string? PriceCurrency,
-  int Priority,
+  decimal? Priority,
   string? Notes);
 
 public sealed record UpdateItemRequestDto(
@@ -13,7 +13,7 @@ public sealed record UpdateItemRequestDto(
   string? Url,
   decimal? PriceAmount,
   string? PriceCurrency,
-  int? Priority,
+  decimal? Priority,
   string? Notes);
 
 public sealed record ItemListQuery(string? Cursor, int? Limit);
@@ -25,9 +25,11 @@ public sealed record ItemDto(
   string? Url,
   decimal? PriceAmount,
   string? PriceCurrency,
-  int Priority,
+  decimal Priority,
   string? Notes,
   DateTime UpdatedAtUtc);
+
+public sealed record RebalanceItemsResultDto(int RebalancedCount);
 
 public sealed record ItemListResult(IReadOnlyList<ItemDto> Items, string? NextCursor);
 
