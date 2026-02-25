@@ -133,3 +133,26 @@ Behavior:
 - public response contains only `title`, `description`, `items`
 - disabled/invalid share token returns `404` (not `403`)
 - public endpoint is rate-limited (`60 req/min`)
+
+## Themes v1 (personal)
+
+Endpoints:
+
+- `POST /themes` with `{ name, tokens }`
+- `GET /themes?cursor=...&limit=...`
+- `GET /themes/{id}`
+- `PATCH /themes/{id}` with `{ name?, tokens? }`
+- `DELETE /themes/{id}`
+
+Tokens schema (required keys):
+
+- `colors`: `bg`, `text`, `primary`, `secondary`, `muted`, `border`
+- `typography`: `fontFamily`, `fontSizeBase`
+- `radii`: `sm`, `md`, `lg`
+- `spacing`: `xs`, `sm`, `md`, `lg`
+
+Rules:
+
+- each theme belongs to `ownerUserId`; only owner can read/update/delete
+- wishlist can reference only owner's `themeId` (checked in wishlist service)
+- `PATCH` behavior for `tokens`: replace whole object (no merge)

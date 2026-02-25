@@ -21,10 +21,15 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
 
       entity.HasIndex(theme => new { theme.OwnerUserId, theme.Name })
         .IsUnique();
+      entity.HasIndex(theme => new { theme.OwnerUserId, theme.CreatedAtUtc, theme.Id });
 
       entity.Property(theme => theme.Name)
         .IsRequired()
         .HasMaxLength(80);
+
+      entity.Property(theme => theme.TokensJson)
+        .HasColumnName("Tokens")
+        .HasColumnType("TEXT");
 
       entity.Property(theme => theme.CreatedAtUtc)
         .IsRequired();

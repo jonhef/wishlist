@@ -1,10 +1,12 @@
 using Microsoft.EntityFrameworkCore;
 using Wishlist.Api.Api.Auth;
 using Wishlist.Api.Api.Public;
+using Wishlist.Api.Api.Themes;
 using Wishlist.Api.Api.Wishlists;
 using Wishlist.Api.Features.Auth;
 using Wishlist.Api.Features.Items;
 using Wishlist.Api.Features.Sharing;
+using Wishlist.Api.Features.Themes;
 using Wishlist.Api.Features.Wishlists;
 using Wishlist.Api.Infrastructure.Persistence;
 
@@ -23,6 +25,7 @@ builder.Services.AddAuthModule(builder.Configuration);
 builder.Services.AddApiAuth(builder.Configuration);
 builder.Services.AddPublicApi();
 builder.Services.AddWishlistModule();
+builder.Services.AddThemeModule();
 builder.Services.AddItemModule();
 builder.Services.AddWishlistSharingModule();
 
@@ -35,6 +38,7 @@ app.UseRateLimiter();
 
 app.MapAuthEndpoints();
 app.MapWishlistEndpoints();
+app.MapThemeEndpoints();
 app.MapPublicWishlistEndpoints();
 
 app.MapGet("/health", () => Results.Ok(new
