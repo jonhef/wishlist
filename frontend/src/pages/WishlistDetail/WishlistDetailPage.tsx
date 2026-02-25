@@ -414,9 +414,10 @@ function ItemForm({ draft, onChange, onSubmit, formId = "create-item-form" }: It
 
       <Input
         id={`${formId}-url`}
-        label="URL"
+        label="URL (optional)"
         onChange={(event) => onChange({ ...draft, url: event.target.value })}
-        type="url"
+        placeholder="https://example.com/item"
+        type="text"
         value={draft.url}
       />
 
