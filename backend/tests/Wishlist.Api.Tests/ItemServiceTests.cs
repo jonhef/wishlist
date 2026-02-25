@@ -105,6 +105,55 @@ public sealed class ItemServiceTests
   }
 
   [Fact]
+  public async Task ListAsync_LimitAboveMax_ReturnsTwoPagesWithMax50()
+  {
+    await using var dbContext = CreateDbContext();
+    var baseTime = DateTime.UtcNow;
+    var service = new ItemService(dbContext, new FakeTimeProvider(baseTime));
+
+    var owner = CreateUser("owner-items-pagination@example.com");
+    var wishlist = CreateWishlist(owner.Id, "Main");
+
+    dbContext.Users.Add(owner);
+    dbContext.Wishlists.Add(wishlist);
+
+    for (var i = 0; i < 55; i++)
+    {
+      dbContext.WishItems.Add(new WishItem
+      {
+        WishlistId = wishlist.Id,
+        Name = $"Item-{i}",
+        Priority = i % 6,
+        CreatedAtUtc = baseTime.AddSeconds(i),
+        UpdatedAtUtc = baseTime.AddSeconds(i),
+        IsDeleted = false
+      });
+    }
+
+    await dbContext.SaveChangesAsync();
+
+    var firstPage = await service.ListAsync(owner.Id, wishlist.Id, new ItemListQuery(null, 500), CancellationToken.None);
+    Assert.True(firstPage.IsSuccess);
+    Assert.NotNull(firstPage.Value);
+    Assert.Equal(50, firstPage.Value!.Items.Count);
+    Assert.NotNull(firstPage.Value.NextCursor);
+
+    var secondPage = await service.ListAsync(
+      owner.Id,
+      wishlist.Id,
+      new ItemListQuery(firstPage.Value.NextCursor, 500),
+      CancellationToken.None);
+
+    Assert.True(secondPage.IsSuccess);
+    Assert.NotNull(secondPage.Value);
+    Assert.Equal(5, secondPage.Value!.Items.Count);
+    Assert.Null(secondPage.Value.NextCursor);
+
+    var allIds = firstPage.Value.Items.Select(x => x.Id).Concat(secondPage.Value.Items.Select(x => x.Id)).ToList();
+    Assert.Equal(55, allIds.Distinct().Count());
+  }
+
+  [Fact]
   public async Task UpdateAsync_EmptyPatch_ReturnsValidationFailed()
   {
     await using var dbContext = CreateDbContext();

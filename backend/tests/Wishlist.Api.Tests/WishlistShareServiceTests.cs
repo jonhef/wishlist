@@ -49,7 +49,10 @@ public sealed class WishlistShareServiceTests
     Assert.True(rotateResult.IsSuccess);
     Assert.NotNull(rotateResult.Value);
 
-    var publicResult = await service.GetPublicByTokenAsync(rotateResult.Value!.Token, CancellationToken.None);
+    var publicResult = await service.GetPublicByTokenAsync(
+      rotateResult.Value!.Token,
+      new PublicWishlistListQuery(null, 50),
+      CancellationToken.None);
 
     Assert.True(publicResult.IsSuccess);
     Assert.NotNull(publicResult.Value);
@@ -99,8 +102,14 @@ public sealed class WishlistShareServiceTests
     Assert.True(second.IsSuccess);
     Assert.NotEqual(first.Value!.Token, second.Value!.Token);
 
-    var oldTokenResult = await service.GetPublicByTokenAsync(first.Value.Token, CancellationToken.None);
-    var newTokenResult = await service.GetPublicByTokenAsync(second.Value.Token, CancellationToken.None);
+    var oldTokenResult = await service.GetPublicByTokenAsync(
+      first.Value.Token,
+      new PublicWishlistListQuery(null, 50),
+      CancellationToken.None);
+    var newTokenResult = await service.GetPublicByTokenAsync(
+      second.Value.Token,
+      new PublicWishlistListQuery(null, 50),
+      CancellationToken.None);
 
     Assert.False(oldTokenResult.IsSuccess);
     Assert.Equal(WishlistShareErrorCodes.NotFound, oldTokenResult.ErrorCode);
@@ -126,9 +135,64 @@ public sealed class WishlistShareServiceTests
     var disable = await service.DisableAsync(owner.Id, wishlist.Id, CancellationToken.None);
     Assert.True(disable.IsSuccess);
 
-    var publicResult = await service.GetPublicByTokenAsync(rotate.Value!.Token, CancellationToken.None);
+    var publicResult = await service.GetPublicByTokenAsync(
+      rotate.Value!.Token,
+      new PublicWishlistListQuery(null, 50),
+      CancellationToken.None);
     Assert.False(publicResult.IsSuccess);
     Assert.Equal(WishlistShareErrorCodes.NotFound, publicResult.ErrorCode);
+  }
+
+  [Fact]
+  public async Task GetPublicByTokenAsync_LimitAboveMax_ReturnsTwoPagesWithMax50()
+  {
+    await using var dbContext = CreateDbContext();
+    var service = new WishlistShareService(dbContext);
+
+    var owner = CreateUser("share-owner-pagination@example.com");
+    var wishlist = CreateWishlist(owner.Id, "Paginated", null);
+
+    dbContext.Users.Add(owner);
+    dbContext.Wishlists.Add(wishlist);
+
+    var baseTime = DateTime.UtcNow;
+    for (var i = 0; i < 55; i++)
+    {
+      dbContext.WishItems.Add(new WishItem
+      {
+        WishlistId = wishlist.Id,
+        Name = $"Item-{i}",
+        Priority = i % 6,
+        CreatedAtUtc = baseTime.AddMinutes(i),
+        UpdatedAtUtc = baseTime.AddMinutes(i),
+        IsDeleted = false
+      });
+    }
+
+    await dbContext.SaveChangesAsync();
+
+    var rotate = await service.RotateAsync(owner.Id, wishlist.Id, CancellationToken.None);
+    Assert.True(rotate.IsSuccess);
+
+    var firstPage = await service.GetPublicByTokenAsync(
+      rotate.Value!.Token,
+      new PublicWishlistListQuery(null, 500),
+      CancellationToken.None);
+
+    Assert.True(firstPage.IsSuccess);
+    Assert.NotNull(firstPage.Value);
+    Assert.Equal(50, firstPage.Value!.Items.Count);
+    Assert.NotNull(firstPage.Value.NextCursor);
+
+    var secondPage = await service.GetPublicByTokenAsync(
+      rotate.Value.Token,
+      new PublicWishlistListQuery(firstPage.Value.NextCursor, 500),
+      CancellationToken.None);
+
+    Assert.True(secondPage.IsSuccess);
+    Assert.NotNull(secondPage.Value);
+    Assert.Equal(5, secondPage.Value!.Items.Count);
+    Assert.Null(secondPage.Value.NextCursor);
   }
 
   private static AppDbContext CreateDbContext()

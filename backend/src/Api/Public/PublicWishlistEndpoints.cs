@@ -19,10 +19,15 @@ public static class PublicWishlistEndpoints
   private static async Task<IResult> GetByTokenAsync(
     HttpContext httpContext,
     string token,
+    string? cursor,
+    int? limit,
     IWishlistShareService wishlistShareService,
     CancellationToken cancellationToken)
   {
-    var result = await wishlistShareService.GetPublicByTokenAsync(token, cancellationToken);
+    var result = await wishlistShareService.GetPublicByTokenAsync(
+      token,
+      new PublicWishlistListQuery(cursor, limit),
+      cancellationToken);
 
     if (!result.IsSuccess || result.Value is null)
     {

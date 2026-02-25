@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using System.Globalization;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
 using Wishlist.Api.Infrastructure.Persistence;
@@ -8,6 +9,9 @@ namespace Wishlist.Api.Features.Sharing;
 
 public sealed class WishlistShareService(AppDbContext dbContext) : IWishlistShareService
 {
+  private const int DefaultLimit = 20;
+  private const int MaxLimit = 50;
+
   private readonly AppDbContext _dbContext = dbContext;
 
   public async Task<WishlistShareServiceResult<ShareRotationResult>> RotateAsync(
@@ -62,6 +66,7 @@ public sealed class WishlistShareService(AppDbContext dbContext) : IWishlistShar
 
   public async Task<WishlistShareServiceResult<PublicWishlistDto>> GetPublicByTokenAsync(
     string token,
+    PublicWishlistListQuery query,
     CancellationToken cancellationToken)
   {
     if (string.IsNullOrWhiteSpace(token))
@@ -82,11 +87,43 @@ public sealed class WishlistShareService(AppDbContext dbContext) : IWishlistShar
       return WishlistShareServiceResult<PublicWishlistDto>.Failure(WishlistShareErrorCodes.NotFound);
     }
 
-    var items = await _dbContext.WishItems
+    var limit = NormalizeLimit(query.Limit);
+    var itemsQuery = _dbContext.WishItems
       .AsNoTracking()
       .Where(x => x.WishlistId == wishlist.Id && !x.IsDeleted)
       .OrderByDescending(x => x.UpdatedAtUtc)
-      .ThenByDescending(x => x.Id)
+      .ThenByDescending(x => x.Id);
+
+    var hasCursor = TryParseCursor(query.Cursor, out var cursorUpdatedAt, out var cursorId);
+    if (hasCursor)
+    {
+      itemsQuery = itemsQuery.Where(item =>
+        item.UpdatedAtUtc < cursorUpdatedAt
+        || (item.UpdatedAtUtc == cursorUpdatedAt && item.Id < cursorId))
+      .OrderByDescending(x => x.UpdatedAtUtc)
+      .ThenByDescending(x => x.Id);
+    }
+
+    var candidates = await itemsQuery
+      .Take(limit + 1)
+      .Select(x => new PublicWishlistItemProjection(
+        x.Name,
+        x.Url,
+        x.PriceAmount,
+        x.PriceCurrency,
+        x.Priority,
+        x.Notes,
+        x.UpdatedAtUtc,
+        x.Id))
+      .ToListAsync(cancellationToken);
+
+    var hasNext = candidates.Count > limit;
+    if (hasNext)
+    {
+      candidates.RemoveAt(candidates.Count - 1);
+    }
+
+    var page = candidates
       .Select(x => new PublicWishlistItemDto(
         x.Name,
         x.Url,
@@ -94,12 +131,17 @@ public sealed class WishlistShareService(AppDbContext dbContext) : IWishlistShar
         x.PriceCurrency,
         x.Priority,
         x.Notes))
-      .ToListAsync(cancellationToken);
+      .ToList();
+
+    var nextCursor = hasNext && candidates.Count > 0
+      ? EncodeCursor(candidates[^1].UpdatedAtUtc, candidates[^1].Id)
+      : null;
 
     var payload = new PublicWishlistDto(
       wishlist.Title,
       wishlist.Description,
-      items);
+      page,
+      nextCursor);
 
     return WishlistShareServiceResult<PublicWishlistDto>.Success(payload);
   }
@@ -116,4 +158,70 @@ public sealed class WishlistShareService(AppDbContext dbContext) : IWishlistShar
     var hash = SHA256.HashData(bytes);
     return Convert.ToHexString(hash);
   }
+
+  private static int NormalizeLimit(int? limit)
+  {
+    if (limit is null || limit <= 0)
+    {
+      return DefaultLimit;
+    }
+
+    return Math.Min(limit.Value, MaxLimit);
+  }
+
+  private static string EncodeCursor(DateTime updatedAtUtc, int itemId)
+  {
+    var raw = $"{updatedAtUtc.Ticks}:{itemId}";
+    return WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(raw));
+  }
+
+  private static bool TryParseCursor(string? cursor, out DateTime updatedAtUtc, out int itemId)
+  {
+    updatedAtUtc = default;
+    itemId = default;
+
+    if (string.IsNullOrWhiteSpace(cursor))
+    {
+      return false;
+    }
+
+    try
+    {
+      var bytes = WebEncoders.Base64UrlDecode(cursor);
+      var raw = Encoding.UTF8.GetString(bytes);
+      var parts = raw.Split(':', 2, StringSplitOptions.RemoveEmptyEntries);
+
+      if (parts.Length != 2)
+      {
+        return false;
+      }
+
+      if (!long.TryParse(parts[0], NumberStyles.Integer, CultureInfo.InvariantCulture, out var ticks))
+      {
+        return false;
+      }
+
+      if (!int.TryParse(parts[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out itemId))
+      {
+        return false;
+      }
+
+      updatedAtUtc = new DateTime(ticks, DateTimeKind.Utc);
+      return true;
+    }
+    catch
+    {
+      return false;
+    }
+  }
+
+  private sealed record PublicWishlistItemProjection(
+    string Name,
+    string? Url,
+    decimal? PriceAmount,
+    string? PriceCurrency,
+    int Priority,
+    string? Notes,
+    DateTime UpdatedAtUtc,
+    int Id);
 }

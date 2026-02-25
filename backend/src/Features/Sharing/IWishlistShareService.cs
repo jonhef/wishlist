@@ -14,5 +14,6 @@ public interface IWishlistShareService
 
   Task<WishlistShareServiceResult<PublicWishlistDto>> GetPublicByTokenAsync(
     string token,
+    PublicWishlistListQuery query,
     CancellationToken cancellationToken);
 }

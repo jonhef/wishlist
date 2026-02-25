@@ -2,6 +2,8 @@ namespace Wishlist.Api.Features.Sharing;
 
 public sealed record ShareRotationResult(string Token);
 
+public sealed record PublicWishlistListQuery(string? Cursor, int? Limit);
+
 public sealed record PublicWishlistItemDto(
   string Name,
   string? Url,
@@ -13,7 +15,8 @@ public sealed record PublicWishlistItemDto(
 public sealed record PublicWishlistDto(
   string Title,
   string? Description,
-  IReadOnlyList<PublicWishlistItemDto> Items);
+  IReadOnlyList<PublicWishlistItemDto> Items,
+  string? NextCursor);
 
 public sealed record WishlistShareServiceResult<T>(T? Value, string? ErrorCode)
 {

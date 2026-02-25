@@ -43,6 +43,43 @@ public sealed class WishlistServiceTests
   }
 
   [Fact]
+  public async Task ListAsync_LimitAboveMax_ReturnsTwoPagesWithMax50()
+  {
+    await using var dbContext = CreateDbContext();
+    var now = DateTime.UtcNow;
+    var service = new WishlistService(dbContext, new FakeTimeProvider(now));
+    var owner = CreateUser("owner-pagination@example.com");
+
+    dbContext.Users.Add(owner);
+
+    for (var i = 0; i < 55; i++)
+    {
+      dbContext.Wishlists.Add(CreateWishlist(owner.Id, $"WL-{i}", now.AddMinutes(i)));
+    }
+
+    await dbContext.SaveChangesAsync();
+
+    var firstPage = await service.ListAsync(owner.Id, new WishlistListQuery(null, 500), CancellationToken.None);
+    Assert.True(firstPage.IsSuccess);
+    Assert.NotNull(firstPage.Value);
+    Assert.Equal(50, firstPage.Value!.Items.Count);
+    Assert.NotNull(firstPage.Value.NextCursor);
+
+    var secondPage = await service.ListAsync(
+      owner.Id,
+      new WishlistListQuery(firstPage.Value.NextCursor, 500),
+      CancellationToken.None);
+
+    Assert.True(secondPage.IsSuccess);
+    Assert.NotNull(secondPage.Value);
+    Assert.Equal(5, secondPage.Value!.Items.Count);
+    Assert.Null(secondPage.Value.NextCursor);
+
+    var allIds = firstPage.Value.Items.Select(x => x.Id).Concat(secondPage.Value.Items.Select(x => x.Id)).ToList();
+    Assert.Equal(55, allIds.Distinct().Count());
+  }
+
+  [Fact]
   public async Task UpdateAsync_ChangesUpdatedAt()
   {
     var now = new DateTime(2026, 2, 24, 10, 0, 0, DateTimeKind.Utc);

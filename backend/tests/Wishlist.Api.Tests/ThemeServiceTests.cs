@@ -58,6 +58,43 @@ public sealed class ThemeServiceTests
   }
 
   [Fact]
+  public async Task ListAsync_LimitAboveMax_ReturnsTwoPagesWithMax50()
+  {
+    await using var dbContext = CreateDbContext();
+    var service = new ThemeService(dbContext, TimeProvider.System);
+
+    var owner = CreateUser("theme-owner-pagination@example.com");
+    dbContext.Users.Add(owner);
+
+    var baseTime = DateTime.UtcNow;
+    for (var i = 0; i < 55; i++)
+    {
+      dbContext.Themes.Add(CreateTheme(owner.Id, $"Theme-{i}", DefaultTokens(), baseTime.AddMinutes(i)));
+    }
+
+    await dbContext.SaveChangesAsync();
+
+    var firstPage = await service.ListAsync(owner.Id, new ThemeListQuery(null, 500), CancellationToken.None);
+    Assert.True(firstPage.IsSuccess);
+    Assert.NotNull(firstPage.Value);
+    Assert.Equal(50, firstPage.Value!.Items.Count);
+    Assert.NotNull(firstPage.Value.NextCursor);
+
+    var secondPage = await service.ListAsync(
+      owner.Id,
+      new ThemeListQuery(firstPage.Value.NextCursor, 500),
+      CancellationToken.None);
+
+    Assert.True(secondPage.IsSuccess);
+    Assert.NotNull(secondPage.Value);
+    Assert.Equal(5, secondPage.Value!.Items.Count);
+    Assert.Null(secondPage.Value.NextCursor);
+
+    var allIds = firstPage.Value.Items.Select(x => x.Id).Concat(secondPage.Value.Items.Select(x => x.Id)).ToList();
+    Assert.Equal(55, allIds.Distinct().Count());
+  }
+
+  [Fact]
   public async Task UpdateAsync_ReplacesWholeTokens()
   {
     await using var dbContext = CreateDbContext();
