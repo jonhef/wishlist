@@ -39,6 +39,28 @@ docker compose up --build
 - Up dev compose (watch + bind mount): `docker compose -f docker-compose.dev.yml up`
 - Down dev compose: `docker compose -f docker-compose.dev.yml down`
 
+## Nginx + Cloudflare TLS
+
+В compose добавлен `nginx`, который публикует `80/443` и проксирует:
+
+- `/api/*` -> `backend:8080`
+- остальное -> `frontend:5173`
+
+TLS для `wishlist.jonhef.org` подтягивается автоматически при старте из глобального Cloudflare каталога.
+
+Переменные окружения:
+
+- `CLOUDFLARE_GLOBAL_CONFIG_DIR` - путь на хосте к каталогу с cert/key (монтируется в контейнер как `/etc/cloudflare`)
+- `CLOUDFLARE_CERT_FILE` - (опционально) полный путь к сертификату внутри контейнера
+- `CLOUDFLARE_KEY_FILE` - (опционально) полный путь к приватному ключу внутри контейнера
+
+Пример запуска:
+
+```bash
+export CLOUDFLARE_GLOBAL_CONFIG_DIR=/opt/cloudflare
+docker compose up --build
+```
+
 ## Базовые root scripts
 
 - `npm run format`
