@@ -14,7 +14,7 @@ test.describe("Smart add visual baseline", () => {
 
   test("focus state", async ({ page }) => {
     await page.setViewportSize({ width: 1366, height: 900 });
-    await page.getByRole("button", { name: "Новый важнее" }).focus();
+    await page.getByRole("button", { name: "New is more important" }).focus();
     await expect(page).toHaveScreenshot("smart-add-focus.png", { fullPage: true });
   });
 

@@ -3,17 +3,17 @@ import { CompareCards } from "../../features/smartAdd/CompareCards";
 import type { ItemDraft } from "../../features/items/itemDraft";
 
 const previewDraft: ItemDraft = {
-  name: "Новые наушники",
+  name: "New headphones",
   url: "https://example.com/headphones",
-  notes: "Лёгкие, с хорошим шумодавом",
+  notes: "Lightweight, with good noise cancellation",
   priceAmount: "199.99",
   priceCurrency: "USD"
 };
 
 const previewExisting = {
-  name: "Электронная книга",
+  name: "E-reader",
   url: "https://example.com/reader",
-  notes: "Читать вечером без подсветки экрана",
+  notes: "Read in the evening without backlight glare",
   priceAmount: 149.99,
   priceCurrency: "USD"
 };

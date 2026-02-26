@@ -2,97 +2,97 @@
 
 ## Decision
 
-Выбран механизм: **JWT access token + refresh token**.
+Chosen mechanism: **JWT access token + refresh token**.
 
-- Access token: JWT, короткоживущий.
-- Refresh token: долгоживущий, с обязательной ротацией на каждом `refresh`.
-- Refresh token хранится в БД **только в виде хеша**.
+- Access token: JWT, short-lived.
+- Refresh token: long-lived, with mandatory rotation on every `refresh`.
+- Refresh token is stored in DB **only as a hash**.
 
-Это решение фиксируем как базовое для всех новых auth-эндпоинтов.
+This decision is the baseline for all new auth endpoints.
 
 ## Parameters
 
-- Access TTL: **15 минут**.
-- Refresh TTL: **30 дней**.
-- Rotation: **всегда** (один refresh-токен одноразовый).
-- Подпись JWT: `RS256` (предпочтительно) или `HS256` при отсутствии KMS.
-- Обязательные claims access token: `sub`, `exp`, `iat`, `jti`, `role`/`scope`.
+- Access TTL: **15 minutes**.
+- Refresh TTL: **30 days**.
+- Rotation: **always** (single-use refresh token).
+- JWT signature: `RS256` (preferred) or `HS256` when KMS is unavailable.
+- Required access token claims: `sub`, `exp`, `iat`, `jti`, `role`/`scope`.
 
 ## Storage
 
-Решение для web frontend:
+Web frontend approach:
 
-- Refresh token хранится в **`httpOnly` + `Secure` cookie**.
-- `SameSite=Lax` по умолчанию, `SameSite=Strict` если UX позволяет.
-- Access token хранить в памяти приложения (in-memory), не в `localStorage`.
+- Refresh token is stored in an **`httpOnly` + `Secure` cookie**.
+- `SameSite=Lax` by default, `SameSite=Strict` if UX allows.
+- Keep access token in app memory (in-memory), not in `localStorage`.
 
-Почему не secure storage для web: в браузере это обычно `localStorage/sessionStorage`, что хуже по XSS-риску. Для native-клиентов использовать platform secure storage допустимо как отдельный профиль.
+Why not secure storage for web: in browsers this is usually `localStorage/sessionStorage`, which is worse for XSS risk. For native clients, platform secure storage can be used as a separate profile.
 
 ## DB Model For Refresh Tokens
 
-Минимальная таблица `refresh_tokens`:
+Minimum `refresh_tokens` table:
 
 - `id`
 - `user_id`
-- `token_hash` (SHA-256 или Argon2id)
+- `token_hash` (SHA-256 or Argon2id)
 - `jti`
-- `family_id` (цепочка ротации)
+- `family_id` (rotation chain)
 - `expires_at`
 - `created_at`
 - `revoked_at` (nullable)
 - `replaced_by_jti` (nullable)
-- `ip` / `user_agent` (опционально для аудитов)
+- `ip` / `user_agent` (optional for audits)
 
 ## Flows
 
 ### Login
 
-1. Пользователь проходит проверку credentials.
-2. Сервер выдает access token (15m).
-3. Сервер выдает refresh token (30d) и сохраняет его hash в БД.
-4. Refresh отправляется в `httpOnly` cookie.
+1. User passes credential validation.
+2. Server issues access token (15m).
+3. Server issues refresh token (30d) and stores its hash in DB.
+4. Refresh is sent in an `httpOnly` cookie.
 
 ### Refresh
 
-1. Клиент вызывает `/auth/refresh` с refresh cookie.
-2. Сервер проверяет подпись/валидность refresh и сверяет hash в БД.
-3. Если токен валиден и не отозван, старый refresh помечается как использованный/отозванный.
-4. Выпускается новая пара: access + refresh.
-5. Новый refresh hash сохраняется в той же `family_id`.
-6. При повторном использовании старого refresh: ревокация всей `family` (replay защита).
+1. Client calls `/auth/refresh` with refresh cookie.
+2. Server validates refresh signature/validity and compares hash in DB.
+3. If token is valid and not revoked, old refresh is marked as used/revoked.
+4. New pair is issued: access + refresh.
+5. New refresh hash is stored in the same `family_id`.
+6. If an old refresh is reused: revoke the whole `family` (replay protection).
 
 ### Logout
 
-1. Клиент вызывает `/auth/logout`.
-2. Сервер ревокает текущий refresh (или всю family для logout-all-devices).
-3. Сервер очищает refresh cookie.
-4. Access токен истекает естественно (15m) или добавляется в denylist при high-risk сценариях.
+1. Client calls `/auth/logout`.
+2. Server revokes current refresh (or whole family for logout-all-devices).
+3. Server clears refresh cookie.
+4. Access token expires naturally (15m) or is added to denylist in high-risk scenarios.
 
 ## Security Notes
 
-- Всегда HTTPS.
-- Ротация refresh токенов обязательна.
-- Refresh хранить только как hash; plaintext не логировать.
-- Добавить rate limit на `/auth/login` и `/auth/refresh`.
-- Для cookie-based refresh: CSRF защита (`SameSite` + anti-CSRF token для state-changing операций).
-- Ротация signing keys по расписанию; поддержка `kid`.
-- Логи: аудит login/refresh/logout, детект reuse refresh.
+- Always HTTPS.
+- Refresh token rotation is mandatory.
+- Store refresh only as hash; do not log plaintext.
+- Add rate limit to `/auth/login` and `/auth/refresh`.
+- For cookie-based refresh: CSRF protection (`SameSite` + anti-CSRF token for state-changing operations).
+- Rotate signing keys on schedule; support `kid`.
+- Logs: login/refresh/logout audit, refresh reuse detection.
 
 ## Tradeoffs
 
-Плюсы:
+Pros:
 
-- Масштабируется лучше, чем server-side sessions в memory.
-- Короткий access TTL снижает ущерб при компрометации access токена.
-- Ротация refresh + hash в БД дает управляемую ревокацию и replay detection.
+- Scales better than in-memory server-side sessions.
+- Short access TTL reduces damage when access token is compromised.
+- Refresh rotation + DB hash gives controlled revocation and replay detection.
 
-Минусы:
+Cons:
 
-- Сложнее реализации (family, rotation, revoke logic).
-- Нужна таблица/индексы и операционная дисциплина по ключам.
-- При cookie-подходе нужно аккуратно закрыть CSRF.
+- Implementation is more complex (family, rotation, revoke logic).
+- Requires table/indexes and operational key discipline.
+- With cookie approach, CSRF must be handled carefully.
 
 ## Non-Goals
 
-- Здесь не фиксируется внешний IdP/OAuth provider.
-- Здесь не фиксируется MFA policy (будет отдельным документом).
+- This document does not lock an external IdP/OAuth provider.
+- This document does not lock MFA policy (will be in a separate document).

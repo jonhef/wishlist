@@ -1,6 +1,6 @@
 # Docs
 
-- `docs/` — место для архитектурных решений, ADR и внутренних гайдов.
+- `docs/` — place for architecture decisions, ADRs, and internal guides.
 - PostgreSQL setup and migration notes: `docs/db.md`
 - EF Core persistence setup: `backend/src/README.md`
 - Auth strategy: `docs/auth.md`

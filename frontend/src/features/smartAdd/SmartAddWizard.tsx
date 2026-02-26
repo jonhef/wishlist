@@ -113,7 +113,7 @@ export function SmartAddWizard({
   if (isDone || mid === null) {
     return (
       <div className="stack gap-md">
-        <p>{workingItems.length === 0 ? "Список пуст, добавляем сразу..." : "Сохраняем порядок..."}</p>
+        <p>{workingItems.length === 0 ? "List is empty, adding immediately..." : "Saving order..."}</p>
       </div>
     );
   }

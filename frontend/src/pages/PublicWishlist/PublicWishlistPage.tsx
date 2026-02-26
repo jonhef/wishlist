@@ -41,10 +41,10 @@ export function PublicWishlistPage(): JSX.Element {
     return (
       <div className="public-page">
         <Card className="stack">
-          <h1>{invalidLink ? "Ссылка недействительна" : "Could not load wishlist"}</h1>
+          <h1>{invalidLink ? "Invalid link" : "Could not load wishlist"}</h1>
           <p className="muted">
             {invalidLink
-              ? "Проверьте токен или попросите владельца заново поделиться wishlist."
+              ? "Check the token or ask the owner to share the wishlist again."
               : "Unexpected error while loading public view."}
           </p>
           <Link className="inline-link" to="/login">

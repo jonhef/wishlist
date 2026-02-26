@@ -47,7 +47,7 @@ export function CompareCards({
       <div className="smart-compare-grid">
         <Card className="smart-compare-card">
           <p className="muted">{smartAddStrings.newItemLabel}</p>
-          <h4>{newItemDraft.name || "Без названия"}</h4>
+          <h4>{newItemDraft.name || "Untitled"}</h4>
           <ItemSummary
             notes={newItemDraft.notes || null}
             priceAmount={newItemDraft.priceAmount ? draftPriceAmount : null}
@@ -70,7 +70,7 @@ export function CompareCards({
 
       <div className="smart-compare-actions">
         <Button
-          aria-label="Новый предмет важнее текущего"
+          aria-label="New item is more important than current item"
           className="smart-compare-choice"
           disabled={isBusy}
           onClick={() => onChoose("new")}
@@ -80,7 +80,7 @@ export function CompareCards({
           {smartAddStrings.chooseNew}
         </Button>
         <Button
-          aria-label="Текущий предмет важнее нового"
+          aria-label="Current item is more important than new item"
           className="smart-compare-choice"
           disabled={isBusy}
           onClick={() => onChoose("existing")}

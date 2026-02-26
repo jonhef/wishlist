@@ -114,7 +114,7 @@ export function AddItemModal({
               Cancel
             </Button>
             <Button disabled={createItemMutation.isPending} form="create-item-form" type="submit">
-              Добавить обычно
+              Add normally
             </Button>
             <Button
               disabled={createItemMutation.isPending || isItemsLoading}
@@ -122,7 +122,7 @@ export function AddItemModal({
               type="button"
               variant="secondary"
             >
-              Умное добавление
+              Smart add
             </Button>
           </>
         )

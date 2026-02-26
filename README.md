@@ -1,6 +1,6 @@
 # Wishlist Monorepo Bootstrap
 
-## Структура
+## Structure
 
 ```text
 .
@@ -10,12 +10,12 @@
 └── docs
 ```
 
-- `backend/` - API сервис
+- `backend/` - API service
 - `frontend/` - web UI + dev server
-- `infra/` - Docker Compose и infra-файлы
-- `docs/` - документация
+- `infra/` - Docker Compose and infra files
+- `docs/` - documentation
 
-## Один шаг после `git clone` (из корня)
+## One step after `git clone` (from repo root)
 
 Prerequisites: `docker` + `docker compose`, `npm`.
 
@@ -24,14 +24,14 @@ cp .env.example .env
 docker compose up --build
 ```
 
-Сервисы будут доступны по адресам:
+Services will be available at:
 
 - frontend: `http://localhost:5173`
 - backend health: `http://localhost:18080/health`
 - backend ready: `http://localhost:18080/health/ready`
 - postgres: `localhost:55432`
 
-## Команды разработки
+## Development commands
 
 - Backend run: `npm run backend:run`
 - Frontend dev: `npm run frontend:dev`
@@ -46,34 +46,34 @@ docker compose up --build
 
 ## Database (PostgreSQL)
 
-- Основной ключ подключения: `ConnectionStrings:WishlistDb`
-- Для env override: `ConnectionStrings__WishlistDb`
-- В compose backend подключается к `postgres` сервису автоматически.
-- Для stage/prod задавай `ConnectionStrings__WishlistDb` и `POSTGRES_*` через secrets/env, не через git.
+- Primary connection key: `ConnectionStrings:WishlistDb`
+- For env override: `ConnectionStrings__WishlistDb`
+- In compose, backend connects to the `postgres` service automatically.
+- For stage/prod, set `ConnectionStrings__WishlistDb` and `POSTGRES_*` via secrets/env, not via git.
 
 ## Nginx + Cloudflare TLS
 
-В compose добавлен `nginx`, который публикует `80/443` и проксирует:
+In compose, `nginx` is added, publishing `80/443` and proxying:
 
 - `/api/*` -> `backend:8080`
-- остальное -> `frontend:5173`
+- everything else -> `frontend:5173`
 
-TLS для `wishlist.jonhef.org` подтягивается автоматически при старте из глобального Cloudflare каталога.
+TLS for `wishlist.jonhef.org` is loaded automatically at startup from the global Cloudflare directory.
 
-Переменные окружения:
+Environment variables:
 
-- `CLOUDFLARE_GLOBAL_CONFIG_DIR` - путь на хосте к каталогу с cert/key (монтируется в контейнер как `/etc/cloudflare`)
-- `CLOUDFLARE_CERT_FILE` - (опционально) полный путь к сертификату внутри контейнера
-- `CLOUDFLARE_KEY_FILE` - (опционально) полный путь к приватному ключу внутри контейнера
+- `CLOUDFLARE_GLOBAL_CONFIG_DIR` - host path to the cert/key directory (mounted into the container as `/etc/cloudflare`)
+- `CLOUDFLARE_CERT_FILE` - (optional) full path to the certificate inside the container
+- `CLOUDFLARE_KEY_FILE` - (optional) full path to the private key inside the container
 
-Пример запуска:
+Launch example:
 
 ```bash
 export CLOUDFLARE_GLOBAL_CONFIG_DIR=/opt/cloudflare
 docker compose up --build
 ```
 
-## Базовые root scripts
+## Basic root scripts
 
 - `npm run format`
 - `npm run lint`
@@ -105,9 +105,9 @@ dotnet ef database update \
   --startup-project backend/src/Wishlist.Api.csproj
 ```
 
-Подробности по PostgreSQL и плану миграции данных (вариант A/B): `docs/db.md`.
+Details on PostgreSQL and the data migration plan (option A/B): `docs/db.md`.
 
-## Остановка контейнеров
+## Stop containers
 
 ```bash
 docker compose down
