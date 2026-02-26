@@ -1,4 +1,6 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata;
+using System.Text;
 using Wishlist.Api.Domain.Entities;
 
 namespace Wishlist.Api.Infrastructure.Persistence;
@@ -28,8 +30,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         .HasMaxLength(80);
 
       entity.Property(theme => theme.TokensJson)
-        .HasColumnName("Tokens")
-        .HasColumnType("TEXT");
+        .HasColumnType("jsonb");
 
       entity.Property(theme => theme.CreatedAtUtc)
         .IsRequired();
@@ -46,7 +47,6 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         .IsUnique();
 
       entity.Property(wishlist => wishlist.Title)
-        .HasColumnName("Name")
         .IsRequired()
         .HasMaxLength(120);
 
@@ -179,5 +179,55 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         .HasForeignKey(token => token.UserId)
         .OnDelete(DeleteBehavior.Cascade);
     });
+
+    ApplyPostgresConventions(modelBuilder);
+  }
+
+  private static void ApplyPostgresConventions(ModelBuilder modelBuilder)
+  {
+    foreach (var entityType in modelBuilder.Model.GetEntityTypes())
+    {
+      foreach (var property in entityType.GetProperties())
+      {
+        property.SetColumnName(ToSnakeCase(property.Name));
+
+        var clrType = Nullable.GetUnderlyingType(property.ClrType) ?? property.ClrType;
+        if (clrType == typeof(Guid))
+        {
+          property.SetColumnType("uuid");
+          continue;
+        }
+
+        if (clrType == typeof(DateTime))
+        {
+          property.SetColumnType("timestamp with time zone");
+        }
+      }
+    }
+  }
+
+  private static string ToSnakeCase(string value)
+  {
+    var buffer = new StringBuilder(value.Length + 8);
+
+    for (var i = 0; i < value.Length; i++)
+    {
+      var character = value[i];
+      if (char.IsUpper(character))
+      {
+        if (i > 0)
+        {
+          buffer.Append('_');
+        }
+
+        buffer.Append(char.ToLowerInvariant(character));
+      }
+      else
+      {
+        buffer.Append(character);
+      }
+    }
+
+    return buffer.ToString();
   }
 }

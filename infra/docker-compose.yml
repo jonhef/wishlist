@@ -1,11 +1,31 @@
 services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-wishlist}
+      POSTGRES_USER: ${POSTGRES_USER:-wishlist}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-wishlist_dev_password}
+    ports:
+      - "${POSTGRES_HOST_PORT:-55432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-wishlist} -d ${POSTGRES_DB:-wishlist}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
   backend:
     build:
       context: ..
       dockerfile: backend/Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
     environment:
       HOST: 0.0.0.0
       PORT: 8080
+      ConnectionStrings__WishlistDb: Host=postgres;Port=5432;Database=${POSTGRES_DB:-wishlist};Username=${POSTGRES_USER:-wishlist};Password=${POSTGRES_PASSWORD:-wishlist_dev_password}
     ports:
       - "18080:8080"
 
@@ -40,3 +60,6 @@ services:
       - "80:80"
       - "443:443"
     command: ["/bootstrap-cloudflare-certs.sh"]
+
+volumes:
+  pgdata:

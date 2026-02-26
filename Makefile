@@ -1,4 +1,4 @@
-.PHONY: format lint test build backend-run frontend-dev up-all up-dev down-dev start stop api-dev api-dev-migrate ef-update ef-add
+.PHONY: format lint test build backend-run frontend-dev up-all up-dev down-dev start stop api-dev api-dev-migrate api-bootstrap db-up ef-update ef-add
 
 format:
 	npm run format
@@ -38,6 +38,14 @@ api-dev:
 
 api-dev-migrate:
 	ASPNETCORE_ENVIRONMENT=Development APPLY_MIGRATIONS_ON_STARTUP=true dotnet run --project backend/src/Wishlist.Api.csproj
+
+db-up:
+	docker compose up -d postgres
+
+api-bootstrap:
+	docker compose up -d postgres
+	dotnet ef database update --project backend/src/Wishlist.Api.csproj --startup-project backend/src/Wishlist.Api.csproj
+	ASPNETCORE_ENVIRONMENT=Development dotnet run --project backend/src/Wishlist.Api.csproj
 
 ef-update:
 	dotnet ef database update --project backend/src/Wishlist.Api.csproj --startup-project backend/src/Wishlist.Api.csproj

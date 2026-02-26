@@ -7,8 +7,7 @@
 
 ## Environment variables
 
-- `ConnectionStrings__DefaultConnection` - primary connection string
-- `DB_CONNECTION_STRING` - fallback connection string
+- `ConnectionStrings__WishlistDb` - primary connection string (PostgreSQL)
 - `ASPNETCORE_ENVIRONMENT=Development` - dev mode
 - `APPLY_MIGRATIONS_ON_STARTUP=true` - apply pending migrations on app start (dev only)
 - `Auth__AccessTokenTtlMinutes=15` - access token TTL
@@ -229,37 +228,37 @@ Main indexes used by list/read paths:
 - `themes(owner_user_id, created_at_utc, id)`
 - `wishlists(share_token_hash)` for public token lookup
 
-SQLite check commands (from repo root):
+PostgreSQL check commands (from repo root):
 
 ```bash
-sqlite3 backend/src/wishlist.dev.db <<'SQL'
-EXPLAIN QUERY PLAN
-SELECT Id, Name, Description, ThemeId, UpdatedAtUtc
+psql "host=localhost port=55432 dbname=wishlist user=wishlist password=wishlist_dev_password" <<'SQL'
+EXPLAIN
+SELECT id, title, description, theme_id, updated_at_utc
 FROM wishlists
-WHERE OwnerUserId = '00000000-0000-0000-0000-000000000000' AND IsDeleted = 0
-ORDER BY UpdatedAtUtc DESC, Id DESC
+WHERE owner_user_id = '00000000-0000-0000-0000-000000000000' AND is_deleted = false
+ORDER BY updated_at_utc DESC, id DESC
 LIMIT 51;
 
-EXPLAIN QUERY PLAN
-SELECT Id, WishlistId, Name, UpdatedAtUtc
+EXPLAIN
+SELECT id, wishlist_id, name, updated_at_utc
 FROM wish_items
-WHERE WishlistId = '00000000-0000-0000-0000-000000000000' AND IsDeleted = 0
-ORDER BY Priority DESC, CreatedAtUtc DESC, Id DESC
+WHERE wishlist_id = '00000000-0000-0000-0000-000000000000' AND is_deleted = false
+ORDER BY priority DESC, created_at_utc DESC, id DESC
 LIMIT 51;
 
-EXPLAIN QUERY PLAN
-SELECT Id, Name, CreatedAtUtc
+EXPLAIN
+SELECT id, name, created_at_utc
 FROM themes
-WHERE OwnerUserId = '00000000-0000-0000-0000-000000000000'
-ORDER BY CreatedAtUtc DESC, Id DESC
+WHERE owner_user_id = '00000000-0000-0000-0000-000000000000'
+ORDER BY created_at_utc DESC, id DESC
 LIMIT 51;
 
-EXPLAIN QUERY PLAN
-SELECT Id, Name
+EXPLAIN
+SELECT id, title
 FROM wishlists
-WHERE ShareTokenHash = 'ABCDEF' AND IsDeleted = 0
+WHERE share_token_hash = 'ABCDEF' AND is_deleted = false
 LIMIT 1;
 SQL
 ```
 
-Expected shape: `SEARCH ... USING INDEX ...` (index-assisted scan in reasonable bounds).
+Expected shape: planner uses indexes for bounded scans (`Index Scan` / `Bitmap Index Scan`) on listed queries.

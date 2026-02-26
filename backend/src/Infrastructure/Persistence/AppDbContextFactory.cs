@@ -8,12 +8,17 @@ public sealed class AppDbContextFactory : IDesignTimeDbContextFactory<AppDbConte
   public AppDbContext CreateDbContext(string[] args)
   {
     var connectionString =
-      Environment.GetEnvironmentVariable("ConnectionStrings__DefaultConnection")
-      ?? Environment.GetEnvironmentVariable("DB_CONNECTION_STRING")
-      ?? "Data Source=wishlist.dev.db";
+      Environment.GetEnvironmentVariable("ConnectionStrings__WishlistDb")
+      ?? "Host=localhost;Port=55432;Database=wishlist;Username=wishlist;Password=wishlist_dev_password";
 
     var optionsBuilder = new DbContextOptionsBuilder<AppDbContext>();
-    optionsBuilder.UseSqlite(connectionString);
+    optionsBuilder.UseNpgsql(connectionString, npgsqlOptions =>
+    {
+      npgsqlOptions.EnableRetryOnFailure(
+        maxRetryCount: 5,
+        maxRetryDelay: TimeSpan.FromSeconds(10),
+        errorCodesToAdd: null);
+    });
 
     return new AppDbContext(optionsBuilder.Options);
   }

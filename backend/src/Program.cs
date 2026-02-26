@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Serilog;
 using System.Text.Json.Serialization;
 using Wishlist.Api.Api.Auth;
@@ -26,12 +27,29 @@ builder.Host.UseSerilog((context, services, configuration) =>
     .Enrich.WithProperty("Application", "wishlist-api");
 });
 
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
-  ?? builder.Configuration["DB_CONNECTION_STRING"]
-  ?? "Data Source=wishlist.dev.db";
+var connectionString = builder.Configuration.GetConnectionString("WishlistDb")
+  ?? throw new InvalidOperationException("Connection string 'WishlistDb' is not configured.");
 
 builder.Services.AddDbContext<AppDbContext>(options =>
-  options.UseSqlite(connectionString));
+{
+  options.UseNpgsql(connectionString, npgsqlOptions =>
+  {
+    npgsqlOptions.EnableRetryOnFailure(
+      maxRetryCount: 5,
+      maxRetryDelay: TimeSpan.FromSeconds(10),
+      errorCodesToAdd: null);
+  });
+
+  if (builder.Environment.IsDevelopment())
+  {
+    options.EnableDetailedErrors();
+    options.EnableSensitiveDataLogging(false);
+    options.LogTo(
+      Console.WriteLine,
+      new[] { DbLoggerCategory.Database.Command.Name },
+      LogLevel.Information);
+  }
+});
 builder.Services.AddProblemDetails();
 builder.Services.ConfigureHttpJsonOptions(options =>
 {
@@ -68,5 +86,23 @@ app.MapGet("/health", () => Results.Ok(new
   status = "ok",
   environment = app.Environment.EnvironmentName
 }));
+
+app.MapGet("/health/ready", async (AppDbContext dbContext, CancellationToken cancellationToken) =>
+{
+  var canConnect = await dbContext.Database.CanConnectAsync(cancellationToken);
+  if (!canConnect)
+  {
+    return Results.Problem(
+      title: "Database unavailable",
+      statusCode: StatusCodes.Status503ServiceUnavailable);
+  }
+
+  return Results.Ok(new
+  {
+    service = "backend-dotnet",
+    status = "ready",
+    database = "postgresql"
+  });
+});
 
 app.Run();

@@ -20,6 +20,7 @@
 Prerequisites: `docker` + `docker compose`, `npm`.
 
 ```bash
+cp .env.example .env
 docker compose up --build
 ```
 
@@ -27,6 +28,8 @@ docker compose up --build
 
 - frontend: `http://localhost:5173`
 - backend health: `http://localhost:18080/health`
+- backend ready: `http://localhost:18080/health/ready`
+- postgres: `localhost:55432`
 
 ## Команды разработки
 
@@ -34,10 +37,19 @@ docker compose up --build
 - Frontend dev: `npm run frontend:dev`
 - .NET API dev run: `npm run api:dev`
 - .NET API dev run + auto migrations: `npm run api:dev:migrate`
+- .NET API bootstrap (postgres + migrations + run): `npm run api:bootstrap`
+- Postgres only (local): `npm run db:up`
 - Up all (docker compose): `docker compose up --build`
 - Down all (docker compose): `docker compose down`
 - Up dev compose (watch + bind mount): `docker compose -f docker-compose.dev.yml up`
 - Down dev compose: `docker compose -f docker-compose.dev.yml down`
+
+## Database (PostgreSQL)
+
+- Основной ключ подключения: `ConnectionStrings:WishlistDb`
+- Для env override: `ConnectionStrings__WishlistDb`
+- В compose backend подключается к `postgres` сервису автоматически.
+- Для stage/prod задавай `ConnectionStrings__WishlistDb` и `POSTGRES_*` через secrets/env, не через git.
 
 ## Nginx + Cloudflare TLS
 
@@ -92,6 +104,8 @@ dotnet ef database update \
   --project backend/src/Wishlist.Api.csproj \
   --startup-project backend/src/Wishlist.Api.csproj
 ```
+
+Подробности по PostgreSQL и плану миграции данных (вариант A/B): `docs/db.md`.
 
 ## Остановка контейнеров
 
