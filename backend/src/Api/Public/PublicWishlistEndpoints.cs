@@ -21,12 +21,21 @@ public static class PublicWishlistEndpoints
     string token,
     string? cursor,
     int? limit,
+    PublicWishlistSort sort,
     IWishlistShareService wishlistShareService,
     CancellationToken cancellationToken)
   {
+    if (!Enum.IsDefined(sort))
+    {
+      return ApiProblem.Validation(
+        httpContext,
+        ApiProblem.SingleFieldError("sort", "Sort must be one of: priority, added."),
+        "Validation failed.");
+    }
+
     var result = await wishlistShareService.GetPublicByTokenAsync(
       token,
-      new PublicWishlistListQuery(cursor, limit),
+      new PublicWishlistListQuery(cursor, limit, sort),
       cancellationToken);
 
     if (!result.IsSuccess || result.Value is null)

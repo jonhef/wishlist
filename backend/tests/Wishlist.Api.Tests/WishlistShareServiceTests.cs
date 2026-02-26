@@ -244,14 +244,14 @@ public sealed class WishlistShareServiceTests
   }
 
   [Fact]
-  public async Task GetPublicByTokenAsync_SortsByPriorityThenCreatedAtDesc()
+  public async Task GetPublicByTokenAsync_SupportsPriorityAndAddedSorting()
   {
     await using var dbContext = CreateDbContext();
     var service = new WishlistShareService(dbContext);
 
     var owner = CreateUser("share-owner-sort@example.com");
     var wishlist = CreateWishlist(owner.Id, "Sorted", null);
-    var baseTime = DateTime.UtcNow;
+    var baseTime = new DateTime(2026, 2, 1, 10, 0, 0, DateTimeKind.Utc);
 
     dbContext.Users.Add(owner);
     dbContext.Wishlists.Add(wishlist);
@@ -259,17 +259,17 @@ public sealed class WishlistShareServiceTests
       new WishItem
       {
         WishlistId = wishlist.Id,
-        Name = "Low",
-        Priority = 100m,
-        CreatedAtUtc = baseTime.AddMinutes(3),
+        Name = "P300-OlderId",
+        Priority = 300m,
+        CreatedAtUtc = baseTime.AddMinutes(1),
         UpdatedAtUtc = baseTime.AddMinutes(10),
         IsDeleted = false
       },
       new WishItem
       {
         WishlistId = wishlist.Id,
-        Name = "High-Older",
-        Priority = 200m,
+        Name = "P300-NewerId",
+        Priority = 300m,
         CreatedAtUtc = baseTime.AddMinutes(1),
         UpdatedAtUtc = baseTime.AddMinutes(11),
         IsDeleted = false
@@ -277,10 +277,19 @@ public sealed class WishlistShareServiceTests
       new WishItem
       {
         WishlistId = wishlist.Id,
-        Name = "High-Newer",
+        Name = "P200-MidTime",
         Priority = 200m,
         CreatedAtUtc = baseTime.AddMinutes(2),
-        UpdatedAtUtc = baseTime.AddMinutes(9),
+        UpdatedAtUtc = baseTime.AddMinutes(12),
+        IsDeleted = false
+      },
+      new WishItem
+      {
+        WishlistId = wishlist.Id,
+        Name = "P100-Newest",
+        Priority = 100m,
+        CreatedAtUtc = baseTime.AddMinutes(3),
+        UpdatedAtUtc = baseTime.AddMinutes(13),
         IsDeleted = false
       });
     await dbContext.SaveChangesAsync();
@@ -288,16 +297,27 @@ public sealed class WishlistShareServiceTests
     var rotate = await service.RotateAsync(owner.Id, wishlist.Id, CancellationToken.None);
     Assert.True(rotate.IsSuccess);
 
-    var result = await service.GetPublicByTokenAsync(
+    var priorityResult = await service.GetPublicByTokenAsync(
       rotate.Value!.Token,
-      new PublicWishlistListQuery(null, 50),
+      new PublicWishlistListQuery(null, 50, PublicWishlistSort.priority),
       CancellationToken.None);
 
-    Assert.True(result.IsSuccess);
-    Assert.NotNull(result.Value);
+    var addedResult = await service.GetPublicByTokenAsync(
+      rotate.Value.Token,
+      new PublicWishlistListQuery(null, 50, PublicWishlistSort.added),
+      CancellationToken.None);
+
+    Assert.True(priorityResult.IsSuccess);
+    Assert.NotNull(priorityResult.Value);
     Assert.Equal(
-      new[] { "High-Newer", "High-Older", "Low" },
-      result.Value!.Items.Select(x => x.Name).ToArray());
+      new[] { "P300-NewerId", "P300-OlderId", "P200-MidTime", "P100-Newest" },
+      priorityResult.Value!.Items.Select(x => x.Name).ToArray());
+
+    Assert.True(addedResult.IsSuccess);
+    Assert.NotNull(addedResult.Value);
+    Assert.Equal(
+      new[] { "P100-Newest", "P200-MidTime", "P300-NewerId", "P300-OlderId" },
+      addedResult.Value!.Items.Select(x => x.Name).ToArray());
   }
 
   private static AppDbContext CreateDbContext()

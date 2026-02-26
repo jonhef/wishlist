@@ -91,21 +91,37 @@ public sealed class WishlistShareService(AppDbContext dbContext) : IWishlistShar
     var limit = NormalizeLimit(query.Limit);
     var itemsQuery = _dbContext.WishItems
       .AsNoTracking()
-      .Where(x => x.WishlistId == wishlist.Id && !x.IsDeleted)
-      .OrderByDescending(x => x.Priority)
-      .ThenByDescending(x => x.CreatedAtUtc)
-      .ThenByDescending(x => x.Id);
+      .Where(x => x.WishlistId == wishlist.Id && !x.IsDeleted);
 
-    var hasCursor = TryParseCursor(query.Cursor, out var cursorPriority, out var cursorCreatedAt, out var cursorId);
-    if (hasCursor)
+    if (query.Sort == PublicWishlistSort.priority)
     {
-      itemsQuery = itemsQuery.Where(item =>
-        item.Priority < cursorPriority
-        || (item.Priority == cursorPriority && item.CreatedAtUtc < cursorCreatedAt)
-        || (item.Priority == cursorPriority && item.CreatedAtUtc == cursorCreatedAt && item.Id < cursorId))
-      .OrderByDescending(x => x.Priority)
-      .ThenByDescending(x => x.CreatedAtUtc)
-      .ThenByDescending(x => x.Id);
+      var hasPriorityCursor = TryParsePriorityCursor(query.Cursor, out var cursorPriority, out var cursorCreatedAt, out var cursorId);
+      if (hasPriorityCursor)
+      {
+        itemsQuery = itemsQuery.Where(item =>
+          item.Priority < cursorPriority
+          || (item.Priority == cursorPriority && item.CreatedAtUtc < cursorCreatedAt)
+          || (item.Priority == cursorPriority && item.CreatedAtUtc == cursorCreatedAt && item.Id < cursorId));
+      }
+
+      itemsQuery = itemsQuery
+        .OrderByDescending(x => x.Priority)
+        .ThenByDescending(x => x.CreatedAtUtc)
+        .ThenByDescending(x => x.Id);
+    }
+    else
+    {
+      var hasAddedCursor = TryParseAddedCursor(query.Cursor, out var cursorCreatedAt, out var cursorId);
+      if (hasAddedCursor)
+      {
+        itemsQuery = itemsQuery.Where(item =>
+          item.CreatedAtUtc < cursorCreatedAt
+          || (item.CreatedAtUtc == cursorCreatedAt && item.Id < cursorId));
+      }
+
+      itemsQuery = itemsQuery
+        .OrderByDescending(x => x.CreatedAtUtc)
+        .ThenByDescending(x => x.Id);
     }
 
     var candidates = await itemsQuery
@@ -129,16 +145,19 @@ public sealed class WishlistShareService(AppDbContext dbContext) : IWishlistShar
 
     var page = candidates
       .Select(x => new PublicWishlistItemDto(
+        x.Id,
         x.Name,
         x.Url,
         x.PriceAmount,
         x.PriceCurrency,
-        x.Priority,
-        x.Notes))
+        x.Notes,
+        x.CreatedAtUtc))
       .ToList();
 
     var nextCursor = hasNext && candidates.Count > 0
-      ? EncodeCursor(candidates[^1].Priority, candidates[^1].CreatedAtUtc, candidates[^1].Id)
+      ? query.Sort == PublicWishlistSort.priority
+        ? EncodePriorityCursor(candidates[^1].Priority, candidates[^1].CreatedAtUtc, candidates[^1].Id)
+        : EncodeAddedCursor(candidates[^1].CreatedAtUtc, candidates[^1].Id)
       : null;
 
     var themeTokens = await ResolveThemeTokensAsync(wishlist.ThemeId, wishlist.OwnerUserId, cancellationToken);
@@ -195,13 +214,13 @@ public sealed class WishlistShareService(AppDbContext dbContext) : IWishlistShar
     return Math.Min(limit.Value, MaxLimit);
   }
 
-  private static string EncodeCursor(decimal priority, DateTime createdAtUtc, int itemId)
+  private static string EncodePriorityCursor(decimal priority, DateTime createdAtUtc, int itemId)
   {
     var raw = $"{priority.ToString(CultureInfo.InvariantCulture)}:{createdAtUtc.Ticks}:{itemId}";
     return WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(raw));
   }
 
-  private static bool TryParseCursor(
+  private static bool TryParsePriorityCursor(
     string? cursor,
     out decimal priority,
     out DateTime createdAtUtc,
@@ -238,6 +257,55 @@ public sealed class WishlistShareService(AppDbContext dbContext) : IWishlistShar
       }
 
       if (!int.TryParse(parts[2], NumberStyles.Integer, CultureInfo.InvariantCulture, out itemId))
+      {
+        return false;
+      }
+
+      createdAtUtc = new DateTime(ticks, DateTimeKind.Utc);
+      return true;
+    }
+    catch
+    {
+      return false;
+    }
+  }
+
+  private static string EncodeAddedCursor(DateTime createdAtUtc, int itemId)
+  {
+    var raw = $"{createdAtUtc.Ticks}:{itemId}";
+    return WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(raw));
+  }
+
+  private static bool TryParseAddedCursor(
+    string? cursor,
+    out DateTime createdAtUtc,
+    out int itemId)
+  {
+    createdAtUtc = default;
+    itemId = default;
+
+    if (string.IsNullOrWhiteSpace(cursor))
+    {
+      return false;
+    }
+
+    try
+    {
+      var bytes = WebEncoders.Base64UrlDecode(cursor);
+      var raw = Encoding.UTF8.GetString(bytes);
+      var parts = raw.Split(':', 2, StringSplitOptions.RemoveEmptyEntries);
+
+      if (parts.Length != 2)
+      {
+        return false;
+      }
+
+      if (!long.TryParse(parts[0], NumberStyles.Integer, CultureInfo.InvariantCulture, out var ticks))
+      {
+        return false;
+      }
+
+      if (!int.TryParse(parts[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out itemId))
       {
         return false;
       }

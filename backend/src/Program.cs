@@ -106,3 +106,5 @@ app.MapGet("/health/ready", async (AppDbContext dbContext, CancellationToken can
 });
 
 app.Run();
+
+public partial class Program;

@@ -9,24 +9,14 @@ import { sortItems } from "../../features/items/sortItems";
 import { useTheme } from "../../theme/ThemeProvider";
 import { Button, Card, Input, Modal, useToast } from "../../ui";
 
-type EditItemDraft = ItemDraft & {
-  priority: string;
-};
-
-const emptyEditDraft: EditItemDraft = {
-  ...emptyItemDraft,
-  priority: "0"
-};
+const emptyEditDraft: ItemDraft = { ...emptyItemDraft };
 
 function isApiError(error: unknown): error is ApiError {
   return error instanceof ApiError;
 }
 
-function editDraftFromItem(item: Item): EditItemDraft {
-  return {
-    ...itemDraftFromItem(item),
-    priority: item.priority
-  };
+function editDraftFromItem(item: Item): ItemDraft {
+  return itemDraftFromItem(item);
 }
 
 export function WishlistDetailPage(): JSX.Element {
@@ -38,7 +28,7 @@ export function WishlistDetailPage(): JSX.Element {
 
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<Item | null>(null);
-  const [editDraft, setEditDraft] = useState<EditItemDraft>(emptyEditDraft);
+  const [editDraft, setEditDraft] = useState<ItemDraft>(emptyEditDraft);
 
   const wishlistQueryKey = ["wishlist", wishlistId];
   const itemsQueryKey = wishlistItemsQueryKey(wishlistId);
@@ -74,7 +64,7 @@ export function WishlistDetailPage(): JSX.Element {
       return apiClient.patchItem(
         wishlistId as string,
         editingItem.id,
-        buildPatchItemPayload(editDraft, editDraft.priority)
+        buildPatchItemPayload(editDraft)
       );
     },
     onSuccess: (updatedItem) => {
@@ -174,7 +164,6 @@ export function WishlistDetailPage(): JSX.Element {
           <Card className="item-card" key={item.id}>
             <div className="stack">
               <h3>{item.name}</h3>
-              <p className="muted">Priority: {item.priority}</p>
               {item.notes ? <p>{item.notes}</p> : null}
               {item.url ? (
                 <a className="inline-link" href={item.url} rel="noreferrer" target="_blank">
@@ -251,8 +240,8 @@ export function WishlistDetailPage(): JSX.Element {
 }
 
 type EditItemFormProps = {
-  draft: EditItemDraft;
-  onChange: (draft: EditItemDraft) => void;
+  draft: ItemDraft;
+  onChange: (draft: ItemDraft) => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   formId: string;
 };
@@ -295,14 +284,6 @@ function EditItemForm({ draft, onChange, onSubmit, formId }: EditItemFormProps):
           value={draft.priceCurrency}
         />
       </div>
-
-      <Input
-        id={`${formId}-priority`}
-        label="Priority"
-        onChange={(event) => onChange({ ...draft, priority: event.target.value })}
-        type="text"
-        value={draft.priority}
-      />
 
       <label className="ui-field" htmlFor={`${formId}-notes`}>
         <span className="ui-field-label">Notes</span>

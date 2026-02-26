@@ -126,7 +126,7 @@ Endpoints:
 
 - `POST /wishlists/{id}/share` -> returns `{ publicUrl }`
 - `DELETE /wishlists/{id}/share`
-- `GET /public/wishlists/{token}?cursor=...&limit=...` (no auth)
+- `GET /public/wishlists/{token}?cursor=...&limit=...&sort=priority|added` (no auth)
 
 Behavior:
 
@@ -134,7 +134,11 @@ Behavior:
 - token is generated as random base64url value and only `token_hash` is stored in DB
 - `DELETE /share` disables sharing
 - public response contains `title`, `description`, `themeTokens`, `items`
+- public item payload: `id`, `name`, `url?`, `priceAmount?`, `priceCurrency?`, `notes?`, `createdAt` (`priority` is internal and never returned)
 - public items listing is cursor-paginated, `limit` max is `50`
+- sorting rules:
+  - `sort=priority` (default): `priority DESC`, then `created_at_utc DESC`, then `id DESC`
+  - `sort=added`: `created_at_utc DESC`, then `id DESC`
 - disabled/invalid share token returns `404` (not `403`)
 - public endpoint is rate-limited (`60 req/min`)
 

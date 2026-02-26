@@ -4,15 +4,25 @@ namespace Wishlist.Api.Features.Sharing;
 
 public sealed record ShareRotationResult(string Token);
 
-public sealed record PublicWishlistListQuery(string? Cursor, int? Limit);
+public enum PublicWishlistSort
+{
+  priority = 0,
+  added = 1
+}
+
+public sealed record PublicWishlistListQuery(
+  string? Cursor,
+  int? Limit,
+  PublicWishlistSort Sort = PublicWishlistSort.priority);
 
 public sealed record PublicWishlistItemDto(
+  int Id,
   string Name,
   string? Url,
   decimal? PriceAmount,
   string? PriceCurrency,
-  decimal Priority,
-  string? Notes);
+  string? Notes,
+  DateTime CreatedAt);
 
 public sealed record PublicWishlistDto(
   string Title,

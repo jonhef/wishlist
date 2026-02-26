@@ -52,6 +52,7 @@ const resolvedThemeTokensSchema =
   >;
 
 const priorityStringSchema = z.coerce.string();
+const publicWishlistSortSchema = z.enum(["priority", "added"]);
 
 const authTokensSchema = z.object({
   accessToken: z.string(),
@@ -115,12 +116,13 @@ const publicWishlistSchema = z.object({
   themeTokens: resolvedThemeTokensSchema,
   items: z.array(
     z.object({
+      id: z.number().int(),
       name: z.string(),
       url: z.string().nullable(),
       priceAmount: z.number().nullable(),
       priceCurrency: z.string().nullable(),
-      priority: priorityStringSchema,
-      notes: z.string().nullable()
+      notes: z.string().nullable(),
+      createdAt: zIsoDate
     })
   ),
   nextCursor: z.string().nullable()
@@ -198,15 +200,17 @@ export type PublicWishlist = {
   description: string | null;
   themeTokens: ThemeTokens;
   items: Array<{
+    id: number;
     name: string;
     url: string | null;
     priceAmount: number | null;
     priceCurrency: string | null;
-    priority: string;
     notes: string | null;
+    createdAt: string;
   }>;
   nextCursor: string | null;
 };
+export type PublicWishlistSort = z.infer<typeof publicWishlistSortSchema>;
 
 export type CreateThemeRequest = {
   name: string;
@@ -612,9 +616,14 @@ class ApiClient {
     await this.request(`/themes/${themeId}`, { method: "DELETE" }, null);
   }
 
-  async getPublicWishlist(token: string, cursor?: string, limit = 100): Promise<PublicWishlist> {
+  async getPublicWishlist(
+    token: string,
+    cursor?: string,
+    limit = 100,
+    sort: PublicWishlistSort = "priority"
+  ): Promise<PublicWishlist> {
     const payload = await this.request(
-      withQuery(`/public/wishlists/${token}`, { cursor, limit }),
+      withQuery(`/public/wishlists/${token}`, { cursor, limit, sort }),
       { method: "GET" },
       publicWishlistSchema,
       {
