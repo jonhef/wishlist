@@ -466,6 +466,38 @@ textarea.ui-input {
   border-color: color-mix(in srgb, var(--color-error) 52%, var(--color-border));
 }
 
+.smart-add-skeleton {
+  border: 1px dashed color-mix(in srgb, var(--color-accent-neon) 35%, var(--color-border));
+  border-radius: var(--radius-md);
+  padding: var(--space-md);
+  background: color-mix(in srgb, var(--color-bg1) 70%, transparent);
+}
+
+.smart-add-progress {
+  font-size: 0.92rem;
+}
+
+.smart-compare-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-md);
+}
+
+.smart-compare-card {
+  min-height: 220px;
+}
+
+.smart-compare-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-sm);
+}
+
+.smart-compare-choice {
+  min-height: 3.1rem;
+  font-size: 1rem;
+}
+
 .ui-tab-list {
   display: flex;
   align-items: center;
@@ -549,6 +581,11 @@ textarea.ui-input {
   .actions-row {
     width: 100%;
     flex-wrap: wrap;
+  }
+
+  .smart-compare-grid,
+  .smart-compare-actions {
+    grid-template-columns: 1fr;
   }
 
   .ui-button {

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { resolveThemeTokens } from "../theme/defaultTokens";
-import type { Theme, ThemePreset, ThemeTokensPatch } from "../theme/model";
+import type { Theme, ThemePreset, ThemeTokens, ThemeTokensPatch } from "../theme/model";
 
 const zIsoDate = z.string().min(1);
 
@@ -44,7 +44,14 @@ const themeTokensPatchSchema = z.object({
   }).optional()
 });
 
-const resolvedThemeTokensSchema = themeTokensPatchSchema.transform((tokens) => resolveThemeTokens(tokens));
+const resolvedThemeTokensSchema =
+  themeTokensPatchSchema.transform((tokens) => resolveThemeTokens(tokens)) as z.ZodType<
+    ThemeTokens,
+    z.ZodTypeDef,
+    unknown
+  >;
+
+const priorityStringSchema = z.coerce.string();
 
 const authTokensSchema = z.object({
   accessToken: z.string(),
@@ -79,8 +86,9 @@ const itemSchema = z.object({
   url: z.string().nullable(),
   priceAmount: z.number().nullable(),
   priceCurrency: z.string().nullable(),
-  priority: z.number(),
+  priority: priorityStringSchema,
   notes: z.string().nullable(),
+  createdAtUtc: zIsoDate.optional(),
   updatedAtUtc: zIsoDate
 });
 
@@ -111,11 +119,15 @@ const publicWishlistSchema = z.object({
       url: z.string().nullable(),
       priceAmount: z.number().nullable(),
       priceCurrency: z.string().nullable(),
-      priority: z.number(),
+      priority: priorityStringSchema,
       notes: z.string().nullable()
     })
   ),
   nextCursor: z.string().nullable()
+});
+
+const rebalanceItemsSchema = z.object({
+  rebalancedCount: z.number().int()
 });
 
 const defaultThemeSchema = z.object({
@@ -168,7 +180,7 @@ export type CreateItemRequest = {
   url?: string | null;
   priceAmount?: number | null;
   priceCurrency?: string | null;
-  priority: number;
+  priority?: string | null;
   notes?: string | null;
 };
 
@@ -177,11 +189,24 @@ export type UpdateItemRequest = {
   url?: string | null;
   priceAmount?: number | null;
   priceCurrency?: string | null;
-  priority?: number | null;
+  priority?: string | null;
   notes?: string | null;
 };
 
-export type PublicWishlist = z.infer<typeof publicWishlistSchema>;
+export type PublicWishlist = {
+  title: string;
+  description: string | null;
+  themeTokens: ThemeTokens;
+  items: Array<{
+    name: string;
+    url: string | null;
+    priceAmount: number | null;
+    priceCurrency: string | null;
+    priority: string;
+    notes: string | null;
+  }>;
+  nextCursor: string | null;
+};
 
 export type CreateThemeRequest = {
   name: string;
@@ -509,6 +534,16 @@ class ApiClient {
     await this.request(`/wishlists/${wishlistId}/items/${itemId}`, { method: "DELETE" }, null);
   }
 
+  async rebalanceItems(wishlistId: string): Promise<z.infer<typeof rebalanceItemsSchema>> {
+    return this.request(
+      `/wishlists/${wishlistId}/items/rebalance`,
+      {
+        method: "POST"
+      },
+      rebalanceItemsSchema
+    );
+  }
+
   async rotateShareLink(wishlistId: string): Promise<z.infer<typeof shareRotationSchema>> {
     return this.request(
       `/wishlists/${wishlistId}/share`,
@@ -524,7 +559,7 @@ class ApiClient {
   }
 
   async getDefaultTheme(): Promise<ThemePreset> {
-    return this.request(
+    const payload = await this.request(
       "/themes/default",
       { method: "GET" },
       defaultThemeSchema,
@@ -533,18 +568,22 @@ class ApiClient {
         retry401: false
       }
     );
+
+    return payload as ThemePreset;
   }
 
   async listThemes(cursor?: string, limit = 50): Promise<{ items: Theme[]; nextCursor: string | null }> {
-    return this.request(withQuery("/themes", { cursor, limit }), { method: "GET" }, themeListSchema);
+    const payload = await this.request(withQuery("/themes", { cursor, limit }), { method: "GET" }, themeListSchema);
+    return payload as { items: Theme[]; nextCursor: string | null };
   }
 
   async getTheme(themeId: string): Promise<Theme> {
-    return this.request(`/themes/${themeId}`, { method: "GET" }, themeSchema);
+    const payload = await this.request(`/themes/${themeId}`, { method: "GET" }, themeSchema);
+    return payload as Theme;
   }
 
   async createTheme(request: CreateThemeRequest): Promise<Theme> {
-    return this.request(
+    const payload = await this.request(
       "/themes",
       {
         method: "POST",
@@ -552,10 +591,12 @@ class ApiClient {
       },
       themeSchema
     );
+
+    return payload as Theme;
   }
 
   async patchTheme(themeId: string, request: UpdateThemeRequest): Promise<Theme> {
-    return this.request(
+    const payload = await this.request(
       `/themes/${themeId}`,
       {
         method: "PATCH",
@@ -563,6 +604,8 @@ class ApiClient {
       },
       themeSchema
     );
+
+    return payload as Theme;
   }
 
   async deleteTheme(themeId: string): Promise<void> {
@@ -570,7 +613,7 @@ class ApiClient {
   }
 
   async getPublicWishlist(token: string, cursor?: string, limit = 100): Promise<PublicWishlist> {
-    return this.request(
+    const payload = await this.request(
       withQuery(`/public/wishlists/${token}`, { cursor, limit }),
       { method: "GET" },
       publicWishlistSchema,
@@ -579,6 +622,8 @@ class ApiClient {
         retry401: false
       }
     );
+
+    return payload as PublicWishlist;
   }
 }
 

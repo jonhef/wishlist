@@ -1,94 +1,31 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import {
-  ApiError,
-  apiClient,
-  type CreateItemRequest,
-  type Item,
-  type ItemListResult,
-  type UpdateItemRequest
-} from "../../api/client";
+import { ApiError, apiClient, type Item } from "../../api/client";
+import { AddItemModal } from "../../features/items/AddItemModal";
+import { buildPatchItemPayload, emptyItemDraft, itemDraftFromItem, type ItemDraft } from "../../features/items/itemDraft";
+import { removeItemFromItemsCache, updateItemInItemsCache, wishlistItemsQueryKey } from "../../features/items/itemsQueries";
+import { sortItems } from "../../features/items/sortItems";
 import { useTheme } from "../../theme/ThemeProvider";
 import { Button, Card, Input, Modal, useToast } from "../../ui";
 
-type SortMode = "priority" | "updated";
-
-type ItemDraft = {
-  name: string;
-  url: string;
-  priceAmount: string;
-  priceCurrency: string;
-  priority: number;
-  notes: string;
+type EditItemDraft = ItemDraft & {
+  priority: string;
 };
 
-const emptyDraft: ItemDraft = {
-  name: "",
-  url: "",
-  priceAmount: "",
-  priceCurrency: "",
-  priority: 1,
-  notes: ""
+const emptyEditDraft: EditItemDraft = {
+  ...emptyItemDraft,
+  priority: "0"
 };
 
 function isApiError(error: unknown): error is ApiError {
   return error instanceof ApiError;
 }
 
-function draftFromItem(item: Item): ItemDraft {
+function editDraftFromItem(item: Item): EditItemDraft {
   return {
-    name: item.name,
-    url: item.url ?? "",
-    priceAmount: item.priceAmount !== null ? String(item.priceAmount) : "",
-    priceCurrency: item.priceCurrency ?? "",
-    priority: item.priority,
-    notes: item.notes ?? ""
-  };
-}
-
-function resolvePriceFields(draft: ItemDraft): { priceAmount: number | null; priceCurrency: string | null } {
-  const hasAmount = draft.priceAmount.trim().length > 0;
-  const normalizedAmount = hasAmount ? Number(draft.priceAmount) : null;
-
-  if (!hasAmount) {
-    return {
-      priceAmount: null,
-      priceCurrency: null
-    };
-  }
-
-  const normalizedCurrency = draft.priceCurrency.trim().toUpperCase();
-
-  return {
-    priceAmount: normalizedAmount,
-    priceCurrency: normalizedCurrency || "USD"
-  };
-}
-
-function itemPayloadFromDraft(draft: ItemDraft): CreateItemRequest {
-  const price = resolvePriceFields(draft);
-
-  return {
-    name: draft.name.trim(),
-    url: draft.url.trim() || null,
-    priceAmount: price.priceAmount,
-    priceCurrency: price.priceCurrency,
-    priority: Number(draft.priority),
-    notes: draft.notes.trim() || null
-  };
-}
-
-function itemPatchPayloadFromDraft(draft: ItemDraft): UpdateItemRequest {
-  const price = resolvePriceFields(draft);
-
-  return {
-    name: draft.name.trim(),
-    url: draft.url.trim() || null,
-    priceAmount: price.priceAmount,
-    priceCurrency: price.priceCurrency,
-    priority: Number(draft.priority),
-    notes: draft.notes.trim() || null
+    ...itemDraftFromItem(item),
+    priority: item.priority
   };
 }
 
@@ -99,13 +36,12 @@ export function WishlistDetailPage(): JSX.Element {
   const { showToast } = useToast();
   const { setActiveTheme } = useTheme();
 
-  const [sortMode, setSortMode] = useState<SortMode>("priority");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<Item | null>(null);
-  const [draft, setDraft] = useState<ItemDraft>(emptyDraft);
+  const [editDraft, setEditDraft] = useState<EditItemDraft>(emptyEditDraft);
 
   const wishlistQueryKey = ["wishlist", wishlistId];
-  const itemsQueryKey = ["wishlist-items", wishlistId];
+  const itemsQueryKey = wishlistItemsQueryKey(wishlistId);
 
   const wishlistQuery = useQuery({
     enabled: Boolean(wishlistId),
@@ -129,51 +65,22 @@ export function WishlistDetailPage(): JSX.Element {
     setActiveTheme(wishlistThemeId);
   }, [setActiveTheme, wishlistQuery.isSuccess, wishlistThemeId]);
 
-  const createItemMutation = useMutation({
-    mutationFn: async () => apiClient.createItem(wishlistId as string, itemPayloadFromDraft(draft)),
-    onSuccess: (newItem) => {
-      queryClient.setQueryData<ItemListResult | undefined>(itemsQueryKey, (current) => {
-        if (!current) {
-          return { items: [newItem], nextCursor: null };
-        }
-
-        return {
-          ...current,
-          items: [newItem, ...current.items]
-        };
-      });
-
-      setIsCreateOpen(false);
-      setDraft(emptyDraft);
-      showToast("Item created", "success");
-    },
-    onError: (error) => {
-      showToast(isApiError(error) ? error.message : "Could not create item", "error");
-    }
-  });
-
   const patchItemMutation = useMutation({
     mutationFn: async () => {
       if (!editingItem) {
         throw new Error("No item selected");
       }
 
-      return apiClient.patchItem(wishlistId as string, editingItem.id, itemPatchPayloadFromDraft(draft));
+      return apiClient.patchItem(
+        wishlistId as string,
+        editingItem.id,
+        buildPatchItemPayload(editDraft, editDraft.priority)
+      );
     },
     onSuccess: (updatedItem) => {
-      queryClient.setQueryData<ItemListResult | undefined>(itemsQueryKey, (current) => {
-        if (!current) {
-          return current;
-        }
-
-        return {
-          ...current,
-          items: current.items.map((item) => (item.id === updatedItem.id ? updatedItem : item))
-        };
-      });
-
+      updateItemInItemsCache(queryClient, wishlistId as string, updatedItem);
       setEditingItem(null);
-      setDraft(emptyDraft);
+      setEditDraft(emptyEditDraft);
       showToast("Item updated", "success");
     },
     onError: (error) => {
@@ -184,17 +91,7 @@ export function WishlistDetailPage(): JSX.Element {
   const deleteItemMutation = useMutation({
     mutationFn: (itemId: number) => apiClient.deleteItem(wishlistId as string, itemId),
     onSuccess: (_, itemId) => {
-      queryClient.setQueryData<ItemListResult | undefined>(itemsQueryKey, (current) => {
-        if (!current) {
-          return current;
-        }
-
-        return {
-          ...current,
-          items: current.items.filter((item) => item.id !== itemId)
-        };
-      });
-
+      removeItemFromItemsCache(queryClient, wishlistId as string, itemId);
       showToast("Item deleted", "success");
     },
     onError: (error) => {
@@ -226,16 +123,6 @@ export function WishlistDetailPage(): JSX.Element {
     }
   });
 
-  const onCreateSubmit = (event: FormEvent<HTMLFormElement>): void => {
-    event.preventDefault();
-    if (!draft.name.trim()) {
-      showToast("Name is required", "error");
-      return;
-    }
-
-    createItemMutation.mutate();
-  };
-
   const onPatchSubmit = (event: FormEvent<HTMLFormElement>): void => {
     event.preventDefault();
 
@@ -246,18 +133,7 @@ export function WishlistDetailPage(): JSX.Element {
     patchItemMutation.mutate();
   };
 
-  const items = itemsQuery.data?.items ?? [];
-  const sortedItems = useMemo(() => {
-    const nextItems = [...items];
-
-    if (sortMode === "priority") {
-      nextItems.sort((left, right) => right.priority - left.priority);
-      return nextItems;
-    }
-
-    nextItems.sort((left, right) => new Date(right.updatedAtUtc).getTime() - new Date(left.updatedAtUtc).getTime());
-    return nextItems;
-  }, [items, sortMode]);
+  const sortedItems = useMemo(() => sortItems(itemsQuery.data?.items ?? []), [itemsQuery.data?.items]);
 
   if (!wishlistId) {
     return <p className="form-error">Missing wishlist id.</p>;
@@ -278,28 +154,13 @@ export function WishlistDetailPage(): JSX.Element {
           <Button onClick={() => rotateShareMutation.mutate()} variant="secondary">
             Copy public link
           </Button>
-          <Button onClick={() => {
-            setDraft(emptyDraft);
-            setIsCreateOpen(true);
-          }}>
+          <Button onClick={() => setIsCreateOpen(true)}>
             Add item
           </Button>
         </div>
       </header>
 
       <div className="actions-row wrap">
-        <label className="ui-field" htmlFor="sort-mode">
-          <span className="ui-field-label">Sort by</span>
-          <select
-            className="ui-input"
-            id="sort-mode"
-            onChange={(event) => setSortMode(event.target.value as SortMode)}
-            value={sortMode}
-          >
-            <option value="priority">Priority</option>
-            <option value="updated">Recently updated</option>
-          </select>
-        </label>
         <Link className="inline-link" to="/themes/editor">
           Open theme editor
         </Link>
@@ -333,7 +194,7 @@ export function WishlistDetailPage(): JSX.Element {
                 aria-label={`Edit ${item.name}`}
                 onClick={() => {
                   setEditingItem(item);
-                  setDraft(draftFromItem(item));
+                  setEditDraft(editDraftFromItem(item));
                 }}
                 variant="secondary"
               >
@@ -355,23 +216,13 @@ export function WishlistDetailPage(): JSX.Element {
         ))}
       </div>
 
-      <Modal
+      <AddItemModal
+        isItemsLoading={itemsQuery.isLoading}
         isOpen={isCreateOpen}
+        items={itemsQuery.data?.items ?? []}
         onClose={() => setIsCreateOpen(false)}
-        title="Add item"
-        footer={(
-          <>
-            <Button onClick={() => setIsCreateOpen(false)} type="button" variant="ghost">
-              Cancel
-            </Button>
-            <Button form="create-item-form" type="submit">
-              Save
-            </Button>
-          </>
-        )}
-      >
-        <ItemForm draft={draft} onChange={setDraft} onSubmit={onCreateSubmit} />
-      </Modal>
+        wishlistId={wishlistId}
+      />
 
       <Modal
         isOpen={Boolean(editingItem)}
@@ -388,20 +239,25 @@ export function WishlistDetailPage(): JSX.Element {
           </>
         )}
       >
-        <ItemForm draft={draft} formId="edit-item-form" onChange={setDraft} onSubmit={onPatchSubmit} />
+        <EditItemForm
+          draft={editDraft}
+          formId="edit-item-form"
+          onChange={setEditDraft}
+          onSubmit={onPatchSubmit}
+        />
       </Modal>
     </section>
   );
 }
 
-type ItemFormProps = {
-  draft: ItemDraft;
-  onChange: (draft: ItemDraft) => void;
+type EditItemFormProps = {
+  draft: EditItemDraft;
+  onChange: (draft: EditItemDraft) => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
-  formId?: string;
+  formId: string;
 };
 
-function ItemForm({ draft, onChange, onSubmit, formId = "create-item-form" }: ItemFormProps): JSX.Element {
+function EditItemForm({ draft, onChange, onSubmit, formId }: EditItemFormProps): JSX.Element {
   return (
     <form className="stack" id={formId} onSubmit={onSubmit}>
       <Input
@@ -440,19 +296,13 @@ function ItemForm({ draft, onChange, onSubmit, formId = "create-item-form" }: It
         />
       </div>
 
-      <label className="ui-field" htmlFor={`${formId}-priority`}>
-        <span className="ui-field-label">Priority</span>
-        <input
-          className="ui-input"
-          id={`${formId}-priority`}
-          max={5}
-          min={0}
-          onChange={(event) => onChange({ ...draft, priority: Number(event.target.value) })}
-          type="range"
-          value={draft.priority}
-        />
-        <span className="muted">{draft.priority}</span>
-      </label>
+      <Input
+        id={`${formId}-priority`}
+        label="Priority"
+        onChange={(event) => onChange({ ...draft, priority: event.target.value })}
+        type="text"
+        value={draft.priority}
+      />
 
       <label className="ui-field" htmlFor={`${formId}-notes`}>
         <span className="ui-field-label">Notes</span>

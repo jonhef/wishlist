@@ -6,6 +6,7 @@ import { DashboardPage } from "../pages/Dashboard/DashboardPage";
 import { WishlistDetailPage } from "../pages/WishlistDetail/WishlistDetailPage";
 import { PublicWishlistPage } from "../pages/PublicWishlist/PublicWishlistPage";
 import { ThemeEditorPage } from "../pages/ThemeEditor/ThemeEditorPage";
+import { SmartAddPreviewPage } from "../pages/SmartAddPreview/SmartAddPreviewPage";
 
 export const appRouter = createBrowserRouter([
   {
@@ -15,6 +16,10 @@ export const appRouter = createBrowserRouter([
   {
     path: "/p/:token",
     element: <PublicWishlistPage />
+  },
+  {
+    path: "/preview/smart-add",
+    element: <SmartAddPreviewPage />
   },
   {
     path: "/",

@@ -55,6 +55,10 @@ export function PublicWishlistPage(): JSX.Element {
     );
   }
 
+  if (!query.data) {
+    return <div className="public-page">Loading public wishlist...</div>;
+  }
+
   const wishlist = query.data;
 
   return (

@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Serilog;
+using System.Text.Json.Serialization;
 using Wishlist.Api.Api.Auth;
 using Wishlist.Api.Api.Errors;
 using Wishlist.Api.Api.Observability;
@@ -32,6 +33,10 @@ var connectionString = builder.Configuration.GetConnectionString("DefaultConnect
 builder.Services.AddDbContext<AppDbContext>(options =>
   options.UseSqlite(connectionString));
 builder.Services.AddProblemDetails();
+builder.Services.ConfigureHttpJsonOptions(options =>
+{
+  options.SerializerOptions.NumberHandling = JsonNumberHandling.AllowReadingFromString;
+});
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddAuthModule(builder.Configuration);
 builder.Services.AddApiAuth(builder.Configuration);
