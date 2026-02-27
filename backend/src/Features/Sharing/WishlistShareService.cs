@@ -3,17 +3,21 @@ using System.Security.Cryptography;
 using System.Text;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
+using Wishlist.Api.Features.Fx;
 using Wishlist.Api.Features.Themes;
 using Wishlist.Api.Infrastructure.Persistence;
 
 namespace Wishlist.Api.Features.Sharing;
 
-public sealed class WishlistShareService(AppDbContext dbContext) : IWishlistShareService
+public sealed class WishlistShareService(
+  AppDbContext dbContext,
+  IFxRatesService fxRatesService) : IWishlistShareService
 {
   private const int DefaultLimit = 20;
   private const int MaxLimit = 50;
 
   private readonly AppDbContext _dbContext = dbContext;
+  private readonly IFxRatesService _fxRatesService = fxRatesService;
 
   public async Task<WishlistShareServiceResult<ShareRotationResult>> RotateAsync(
     Guid ownerUserId,
@@ -86,6 +90,11 @@ public sealed class WishlistShareService(AppDbContext dbContext) : IWishlistShar
     if (wishlist is null)
     {
       return WishlistShareServiceResult<PublicWishlistDto>.Failure(WishlistShareErrorCodes.NotFound);
+    }
+
+    if (query.Sort == PublicWishlistSort.price)
+    {
+      return await GetPriceSortedPublicAsync(wishlist, query, cancellationToken);
     }
 
     var limit = NormalizeLimit(query.Limit);
@@ -167,6 +176,86 @@ public sealed class WishlistShareService(AppDbContext dbContext) : IWishlistShar
       wishlist.Description,
       themeTokens,
       page,
+      nextCursor);
+
+    return WishlistShareServiceResult<PublicWishlistDto>.Success(payload);
+  }
+
+  private async Task<WishlistShareServiceResult<PublicWishlistDto>> GetPriceSortedPublicAsync(
+    Domain.Entities.WishlistEntity wishlist,
+    PublicWishlistListQuery query,
+    CancellationToken cancellationToken)
+  {
+    var snapshot = await _fxRatesService.GetLatestSnapshotAsync(cancellationToken);
+    if (snapshot is null)
+    {
+      return WishlistShareServiceResult<PublicWishlistDto>.Failure(WishlistShareErrorCodes.FxUnavailable);
+    }
+
+    var wishlistBaseCurrency = SupportedCurrencies.IsSupported(wishlist.BaseCurrency)
+      ? wishlist.BaseCurrency
+      : SupportedCurrencies.Eur;
+
+    if (!snapshot.RatesByQuote.ContainsKey(wishlistBaseCurrency))
+    {
+      return WishlistShareServiceResult<PublicWishlistDto>.Failure(WishlistShareErrorCodes.FxUnavailable);
+    }
+
+    var items = await _dbContext.WishItems
+      .AsNoTracking()
+      .Where(item => item.WishlistId == wishlist.Id && !item.IsDeleted)
+      .Select(item => new PublicWishlistItemProjection(
+        item.Name,
+        item.Url,
+        item.PriceAmount,
+        item.PriceCurrency,
+        item.Priority,
+        item.Notes,
+        item.CreatedAtUtc,
+        item.Id))
+      .ToListAsync(cancellationToken);
+
+    var ordered = OrderPriceItems(
+      items,
+      snapshot,
+      wishlistBaseCurrency,
+      query.Order);
+
+    var startIndex = 0;
+    if (TryParsePriceCursor(query.Cursor, out var cursorItemId))
+    {
+      var cursorIndex = ordered.FindIndex(item => item.Item.Id == cursorItemId);
+      if (cursorIndex >= 0)
+      {
+        startIndex = cursorIndex + 1;
+      }
+    }
+
+    var limit = NormalizeLimit(query.Limit);
+    var page = ordered.Skip(startIndex).Take(limit).Select(item => item.Item).ToList();
+    var hasNext = ordered.Count > startIndex + page.Count;
+
+    var payloadItems = page
+      .Select(item => new PublicWishlistItemDto(
+        item.Id,
+        item.Name,
+        item.Url,
+        item.PriceAmount,
+        item.PriceCurrency,
+        item.Notes,
+        item.CreatedAtUtc))
+      .ToList();
+
+    var nextCursor = hasNext && payloadItems.Count > 0
+      ? EncodePriceCursor(payloadItems[^1].Id)
+      : null;
+
+    var themeTokens = await ResolveThemeTokensAsync(wishlist.ThemeId, wishlist.OwnerUserId, cancellationToken);
+    var payload = new PublicWishlistDto(
+      wishlist.Title,
+      wishlist.Description,
+      themeTokens,
+      payloadItems,
       nextCursor);
 
     return WishlistShareServiceResult<PublicWishlistDto>.Success(payload);
@@ -319,13 +408,67 @@ public sealed class WishlistShareService(AppDbContext dbContext) : IWishlistShar
     }
   }
 
+  private static string EncodePriceCursor(int itemId)
+  {
+    var raw = itemId.ToString(CultureInfo.InvariantCulture);
+    return WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(raw));
+  }
+
+  private static bool TryParsePriceCursor(string? cursor, out int itemId)
+  {
+    itemId = default;
+    if (string.IsNullOrWhiteSpace(cursor))
+    {
+      return false;
+    }
+
+    try
+    {
+      var bytes = WebEncoders.Base64UrlDecode(cursor);
+      var raw = Encoding.UTF8.GetString(bytes);
+      return int.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out itemId);
+    }
+    catch
+    {
+      return false;
+    }
+  }
+
+  private static List<PriceSortedItem> OrderPriceItems(
+    IReadOnlyList<PublicWishlistItemProjection> items,
+    FxRatesSnapshot snapshot,
+    string wishlistBaseCurrency,
+    PublicWishlistOrder order)
+  {
+    var priced = items
+      .Select(item => new PriceSortedItem(
+        item,
+        PriceNormalization.TryNormalizeMinorToBase(item.PriceAmount, item.PriceCurrency, wishlistBaseCurrency, snapshot.RatesByQuote)))
+      .ToList();
+
+    var ordered = order == PublicWishlistOrder.desc
+      ? priced
+        .OrderBy(item => !item.PriceInBase.HasValue ? 1 : 0)
+        .ThenByDescending(item => item.PriceInBase)
+      : priced
+        .OrderBy(item => !item.PriceInBase.HasValue ? 1 : 0)
+        .ThenBy(item => item.PriceInBase);
+
+    return ordered
+      .ThenByDescending(item => item.Item.CreatedAtUtc)
+      .ThenByDescending(item => item.Item.Id)
+      .ToList();
+  }
+
   private sealed record PublicWishlistItemProjection(
     string Name,
     string? Url,
-    decimal? PriceAmount,
+    int? PriceAmount,
     string? PriceCurrency,
     decimal Priority,
     string? Notes,
     DateTime CreatedAtUtc,
     int Id);
+
+  private sealed record PriceSortedItem(PublicWishlistItemProjection Item, decimal? PriceInBase);
 }

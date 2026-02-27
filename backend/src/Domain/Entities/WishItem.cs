@@ -12,7 +12,7 @@ public sealed class WishItem
 
   public string? Url { get; set; }
 
-  public decimal? PriceAmount { get; set; }
+  public int? PriceAmount { get; set; }
 
   public string? PriceCurrency { get; set; }
 

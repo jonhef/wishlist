@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ApiError, apiClient, type Item } from "../../api/client";
 import { Button, Input, Modal, useToast } from "../../ui";
 import { SmartAddWizard } from "../smartAdd/SmartAddWizard";
+import { getMinorUnits, normalizeCurrency, supportedCurrencies } from "./currency";
 import { buildCreateItemPayload, emptyItemDraft, hasUnsavedItemDraft, type ItemDraft } from "./itemDraft";
 import { insertItemIntoItemsCache } from "./itemsQueries";
 import { sortItems } from "./sortItems";
@@ -168,6 +169,9 @@ type ItemDraftFormProps = {
 };
 
 function ItemDraftForm({ draft, onChange, onSubmit, formId }: ItemDraftFormProps): JSX.Element {
+  const selectedCurrency = normalizeCurrency(draft.priceCurrency);
+  const priceStep = selectedCurrency && getMinorUnits(selectedCurrency) === 0 ? "1" : "0.01";
+
   return (
     <form className="stack" id={formId} onSubmit={onSubmit}>
       <Input
@@ -193,17 +197,25 @@ function ItemDraftForm({ draft, onChange, onSubmit, formId }: ItemDraftFormProps
           label="Price"
           min="0"
           onChange={(event) => onChange({ ...draft, priceAmount: event.target.value })}
-          step="0.01"
+          step={priceStep}
           type="number"
           value={draft.priceAmount}
         />
-
-        <Input
-          id={`${formId}-currency`}
-          label="Currency"
-          onChange={(event) => onChange({ ...draft, priceCurrency: event.target.value.toUpperCase() })}
-          value={draft.priceCurrency}
-        />
+        <label className="ui-field" htmlFor={`${formId}-currency`}>
+          <span className="ui-field-label">Currency</span>
+          <select
+            className="ui-input"
+            id={`${formId}-currency`}
+            onChange={(event) => onChange({ ...draft, priceCurrency: event.target.value })}
+            value={normalizeCurrency(draft.priceCurrency) ?? "USD"}
+          >
+            {supportedCurrencies.map((currency) => (
+              <option key={currency} value={currency}>
+                {currency}
+              </option>
+            ))}
+          </select>
+        </label>
       </div>
 
       <label className="ui-field" htmlFor={`${formId}-notes`}>

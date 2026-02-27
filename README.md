@@ -26,10 +26,12 @@ docker compose up --build
 
 Services will be available at:
 
-- frontend: `http://localhost:5173`
-- backend health: `http://localhost:18080/health`
-- backend ready: `http://localhost:18080/health/ready`
-- postgres: `localhost:55432`
+- frontend: `http://localhost:5183`
+- backend health: `http://localhost:19080/health`
+- backend ready: `http://localhost:19080/health/ready`
+- nginx http: `http://localhost:8088`
+- nginx https: `https://localhost:8445`
+- postgres: `localhost:56432`
 
 ## Development commands
 
@@ -53,7 +55,7 @@ Services will be available at:
 
 ## Nginx + Cloudflare TLS
 
-In compose, `nginx` is added, publishing `80/443` and proxying:
+In compose, `nginx` is added, publishing host ports `8088/8445` by default (configurable via env) and proxying:
 
 - `/api/*` -> `backend:8080`
 - everything else -> `frontend:5173`

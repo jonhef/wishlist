@@ -2,7 +2,7 @@
 set -eu
 
 DOMAIN="${NGINX_DOMAIN:-wishlist.jonhef.org}"
-GLOBAL_CERT_DIR="${CLOUDFLARE_GLOBAL_CONFIG_DIR:-/etc/cloudflare}"
+GLOBAL_CERT_DIR="${CLOUDFLARE_GLOBAL_CONFIG_DIR:-/etc/ssl/cloudflare}"
 TARGET_DIR="/etc/nginx/certs"
 TARGET_CERT="${TARGET_DIR}/tls.crt"
 TARGET_KEY="${TARGET_DIR}/tls.key"

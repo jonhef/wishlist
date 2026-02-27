@@ -3,7 +3,7 @@ namespace Wishlist.Api.Features.Items;
 public sealed record CreateItemRequestDto(
   string Name,
   string? Url,
-  decimal? PriceAmount,
+  int? PriceAmount,
   string? PriceCurrency,
   decimal? Priority,
   string? Notes);
@@ -11,7 +11,7 @@ public sealed record CreateItemRequestDto(
 public sealed record UpdateItemRequestDto(
   string? Name,
   string? Url,
-  decimal? PriceAmount,
+  int? PriceAmount,
   string? PriceCurrency,
   decimal? Priority,
   string? Notes);
@@ -23,7 +23,7 @@ public sealed record ItemDto(
   Guid WishlistId,
   string Name,
   string? Url,
-  decimal? PriceAmount,
+  int? PriceAmount,
   string? PriceCurrency,
   decimal Priority,
   string? Notes,

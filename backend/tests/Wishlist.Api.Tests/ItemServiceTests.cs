@@ -48,7 +48,7 @@ public sealed class ItemServiceTests
     var result = await service.CreateAsync(
       owner.Id,
       wishlist.Id,
-      new CreateItemRequestDto("Phone", "example.com/phone", 99.99m, "usd", 4, "buy soon"),
+      new CreateItemRequestDto("Phone", "example.com/phone", 9999, "usd", 4, "buy soon"),
       CancellationToken.None);
 
     Assert.True(result.IsSuccess);

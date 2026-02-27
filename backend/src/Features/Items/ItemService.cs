@@ -3,6 +3,7 @@ using System.Text;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
 using Wishlist.Api.Domain.Entities;
+using Wishlist.Api.Features.Fx;
 using Wishlist.Api.Infrastructure.Persistence;
 
 namespace Wishlist.Api.Features.Items;
@@ -325,7 +326,7 @@ public sealed class ItemService(AppDbContext dbContext, TimeProvider timeProvide
   private static ItemValidationResult NormalizeAndValidate(
     string? name,
     string? url,
-    decimal? priceAmount,
+    int? priceAmount,
     string? priceCurrency,
     decimal priority,
     string? notes)
@@ -424,12 +425,7 @@ public sealed class ItemService(AppDbContext dbContext, TimeProvider timeProvide
       return null;
     }
 
-    if (trimmed.Length != 3 || !trimmed.All(char.IsLetter))
-    {
-      return null;
-    }
-
-    return trimmed.ToUpperInvariant();
+    return SupportedCurrencies.TryNormalize(trimmed, out var normalized) ? normalized : null;
   }
 
   private static int NormalizeLimit(int? limit)
@@ -517,7 +513,7 @@ public sealed class ItemService(AppDbContext dbContext, TimeProvider timeProvide
     Guid WishlistId,
     string Name,
     string? Url,
-    decimal? PriceAmount,
+    int? PriceAmount,
     string? PriceCurrency,
     decimal Priority,
     string? Notes,
@@ -528,7 +524,7 @@ public sealed class ItemService(AppDbContext dbContext, TimeProvider timeProvide
     bool IsSuccess,
     string? Name,
     string? Url,
-    decimal? PriceAmount,
+    int? PriceAmount,
     string? PriceCurrency,
     decimal Priority,
     string? Notes)
@@ -536,7 +532,7 @@ public sealed class ItemService(AppDbContext dbContext, TimeProvider timeProvide
     public static ItemValidationResult Success(
       string name,
       string? url,
-      decimal? priceAmount,
+      int? priceAmount,
       string? priceCurrency,
       decimal priority,
       string? notes) =>

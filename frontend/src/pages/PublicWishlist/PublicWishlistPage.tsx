@@ -1,10 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
-import { ApiError, apiClient, type PublicWishlistSort } from "../../api/client";
+import { ApiError, apiClient, type PublicWishlistOrder, type PublicWishlistSort } from "../../api/client";
+import { formatMinorPrice } from "../../features/items/currency";
 import { defaultThemeTokens } from "../../theme/defaultTokens";
 import { useTheme } from "../../theme/ThemeProvider";
-import { Card } from "../../ui";
+import { Card, useToast } from "../../ui";
+import { applyOrderChange, applySortChange, buildPublicWishlistQueryKey, parsePublicSortState } from "./sortQuery";
 
 function isApiError(error: unknown): error is ApiError {
   return error instanceof ApiError;
@@ -14,13 +16,14 @@ export function PublicWishlistPage(): JSX.Element {
   const { token } = useParams<{ token: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
   const { setPreviewTokens } = useTheme();
-  const rawSort = searchParams.get("sort");
-  const sort: PublicWishlistSort = rawSort === "added" ? "added" : "priority";
+  const { showToast } = useToast();
+  const { sort, order } = parsePublicSortState(searchParams);
+  const lastNonPriceSortRef = useRef<PublicWishlistSort>("priority");
 
   const query = useQuery({
     enabled: Boolean(token),
-    queryKey: ["public-wishlist", token, sort],
-    queryFn: () => apiClient.getPublicWishlist(token as string, undefined, 100, sort)
+    queryKey: buildPublicWishlistQueryKey(token, { sort, order }),
+    queryFn: () => apiClient.getPublicWishlist(token as string, undefined, 100, sort, order)
   });
 
   useEffect(() => {
@@ -29,6 +32,29 @@ export function PublicWishlistPage(): JSX.Element {
       setPreviewTokens(null);
     };
   }, [query.data?.themeTokens, setPreviewTokens]);
+
+  useEffect(() => {
+    if (sort !== "price") {
+      lastNonPriceSortRef.current = sort;
+    }
+  }, [sort]);
+
+  useEffect(() => {
+    if (sort !== "price" || !query.error || !isApiError(query.error) || query.error.status !== 400) {
+      return;
+    }
+
+    const fallbackSort = lastNonPriceSortRef.current;
+    const nextParams = new URLSearchParams(searchParams);
+    if (fallbackSort === "priority") {
+      nextParams.delete("sort");
+    } else {
+      nextParams.set("sort", fallbackSort);
+    }
+    nextParams.delete("order");
+    setSearchParams(nextParams, { replace: true });
+    showToast("Exchange rates are unavailable for price sorting", "error");
+  }, [query.error, searchParams, setSearchParams, showToast, sort]);
 
   if (!token) {
     return <p className="form-error">Missing public token.</p>;
@@ -66,14 +92,16 @@ export function PublicWishlistPage(): JSX.Element {
   const hasItems = wishlist.items.length > 0;
 
   const handleSortChange = (value: PublicWishlistSort): void => {
-    const nextParams = new URLSearchParams(searchParams);
+    const nextParams = applySortChange(searchParams, value);
+    setSearchParams(nextParams, { replace: true });
+  };
 
-    if (value === "priority") {
-      nextParams.delete("sort");
-    } else {
-      nextParams.set("sort", value);
+  const handleOrderChange = (value: PublicWishlistOrder): void => {
+    if (sort !== "price") {
+      return;
     }
 
+    const nextParams = applyOrderChange(searchParams, value);
     setSearchParams(nextParams, { replace: true });
   };
 
@@ -96,8 +124,25 @@ export function PublicWishlistPage(): JSX.Element {
           >
             <option value="priority">By importance</option>
             <option value="added">By added date</option>
+            <option value="price">By price</option>
           </select>
         </label>
+
+        {sort === "price" ? (
+          <label className="ui-field" htmlFor="public-order">
+            <span className="ui-field-label">Order</span>
+            <select
+              className="ui-input"
+              disabled={!hasItems}
+              id="public-order"
+              onChange={(event) => handleOrderChange(event.target.value as PublicWishlistOrder)}
+              value={order}
+            >
+              <option value="asc">Ascending</option>
+              <option value="desc">Descending</option>
+            </select>
+          </label>
+        ) : null}
       </div>
 
       <div className="stack gap-md">
@@ -111,9 +156,7 @@ export function PublicWishlistPage(): JSX.Element {
               </a>
             ) : null}
             {item.priceAmount !== null ? (
-              <p className="muted">
-                {item.priceAmount} {item.priceCurrency ?? ""}
-              </p>
+              <p className="muted">{formatMinorPrice(item.priceAmount, item.priceCurrency)}</p>
             ) : null}
           </Card>
         ))}

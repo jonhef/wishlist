@@ -6,7 +6,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-wishlist}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-wishlist_dev_password}
     ports:
-      - "${POSTGRES_HOST_PORT:-55432}:5432"
+      - "${POSTGRES_HOST_PORT:-56432}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -29,7 +29,7 @@ services:
       APPLY_MIGRATIONS_ON_STARTUP: "true"
       ConnectionStrings__WishlistDb: Host=postgres;Port=5432;Database=${POSTGRES_DB:-wishlist};Username=${POSTGRES_USER:-wishlist};Password=${POSTGRES_PASSWORD:-wishlist_dev_password}
     ports:
-      - "18080:8080"
+      - "${BACKEND_HOST_PORT:-19080}:8080"
 
   frontend:
     build:
@@ -42,7 +42,7 @@ services:
     depends_on:
       - backend
     ports:
-      - "5173:5173"
+      - "${FRONTEND_HOST_PORT:-5183}:5173"
 
   nginx:
     image: nginx:1.27-alpine
@@ -59,8 +59,8 @@ services:
       - ./infra/nginx/scripts/bootstrap-cloudflare-certs.sh:/bootstrap-cloudflare-certs.sh:ro
       - ${CLOUDFLARE_GLOBAL_CONFIG_DIR:-/etc/cloudflare}:/etc/cloudflare:ro
     ports:
-      - "80:80"
-      - "443:443"
+      - "${NGINX_HTTP_HOST_PORT:-8088}:80"
+      - "${NGINX_HTTPS_HOST_PORT:-8445}:443"
     command: ["/bootstrap-cloudflare-certs.sh"]
 
 volumes:

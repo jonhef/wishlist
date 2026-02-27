@@ -12,6 +12,8 @@ public sealed class WishlistEntity
 
   public string? Description { get; set; }
 
+  public string BaseCurrency { get; set; } = "EUR";
+
   public Guid? ThemeId { get; set; }
 
   public ThemeEntity? Theme { get; set; }

@@ -10,6 +10,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
   public DbSet<ThemeEntity> Themes => Set<ThemeEntity>();
   public DbSet<WishlistEntity> Wishlists => Set<WishlistEntity>();
   public DbSet<WishItem> WishItems => Set<WishItem>();
+  public DbSet<FxRate> FxRates => Set<FxRate>();
   public DbSet<AppUser> Users => Set<AppUser>();
   public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
 
@@ -38,7 +39,12 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
 
     modelBuilder.Entity<WishlistEntity>(entity =>
     {
-      entity.ToTable("wishlists");
+      entity.ToTable("wishlists", tableBuilder =>
+      {
+        tableBuilder.HasCheckConstraint(
+          "CK_wishlists_base_currency_supported",
+          "base_currency IN ('EUR','USD','RUB','JPY')");
+      });
 
       entity.HasKey(wishlist => wishlist.Id);
 
@@ -52,6 +58,11 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
 
       entity.Property(wishlist => wishlist.Description)
         .HasMaxLength(1000);
+
+      entity.Property(wishlist => wishlist.BaseCurrency)
+        .IsRequired()
+        .HasMaxLength(3)
+        .HasDefaultValue("EUR");
 
       entity.Property(wishlist => wishlist.CreatedAtUtc)
         .IsRequired();
@@ -73,7 +84,12 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
 
     modelBuilder.Entity<WishItem>(entity =>
     {
-      entity.ToTable("wish_items");
+      entity.ToTable("wish_items", tableBuilder =>
+      {
+        tableBuilder.HasCheckConstraint(
+          "CK_wish_items_price_currency_supported",
+          "price_currency IS NULL OR price_currency IN ('EUR','USD','RUB','JPY')");
+      });
 
       entity.HasKey(item => item.Id);
 
@@ -87,7 +103,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         .HasMaxLength(2048);
 
       entity.Property(item => item.PriceAmount)
-        .HasColumnType("decimal(18,2)");
+        .HasColumnType("integer");
 
       entity.Property(item => item.PriceCurrency)
         .HasMaxLength(3);
@@ -112,6 +128,46 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         .WithMany(wishlist => wishlist.Items)
         .HasForeignKey(item => item.WishlistId)
         .OnDelete(DeleteBehavior.Cascade);
+    });
+
+    modelBuilder.Entity<FxRate>(entity =>
+    {
+      entity.ToTable("fx_rates", tableBuilder =>
+      {
+        tableBuilder.HasCheckConstraint(
+          "CK_fx_rates_base_currency_supported",
+          "base_currency IN ('EUR','USD','RUB','JPY')");
+        tableBuilder.HasCheckConstraint(
+          "CK_fx_rates_quote_currency_supported",
+          "quote_currency IN ('EUR','USD','RUB','JPY')");
+      });
+
+      entity.HasKey(rate => new { rate.BaseCurrency, rate.QuoteCurrency, rate.AsOf });
+      entity.HasIndex(rate => new { rate.BaseCurrency, rate.QuoteCurrency, rate.AsOf })
+        .IsDescending(false, false, true);
+
+      entity.Property(rate => rate.BaseCurrency)
+        .HasMaxLength(3)
+        .IsRequired()
+        .HasDefaultValue("EUR");
+
+      entity.Property(rate => rate.QuoteCurrency)
+        .HasMaxLength(3)
+        .IsRequired();
+
+      entity.Property(rate => rate.RateToBase)
+        .HasColumnType("numeric(20,10)")
+        .IsRequired();
+
+      entity.Property(rate => rate.AsOf)
+        .HasColumnType("date")
+        .IsRequired();
+
+      entity.Property(rate => rate.Source)
+        .IsRequired();
+
+      entity.Property(rate => rate.UpdatedAtUtc)
+        .IsRequired();
     });
 
     modelBuilder.Entity<AppUser>(entity =>

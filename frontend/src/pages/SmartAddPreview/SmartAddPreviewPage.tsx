@@ -14,7 +14,7 @@ const previewExisting = {
   name: "E-reader",
   url: "https://example.com/reader",
   notes: "Read in the evening without backlight glare",
-  priceAmount: 149.99,
+  priceAmount: 14999,
   priceCurrency: "USD"
 };
 

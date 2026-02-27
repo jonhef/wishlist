@@ -107,6 +107,8 @@ Item fields:
 - `name` (required)
 - `url` (optional)
 - `priceAmount` / `priceCurrency` (optional pair)
+  - `priceAmount` is stored in **minor units** (`int`)
+  - supported currencies: `EUR`, `USD`, `RUB`, `JPY`
 - `priority` (optional `decimal`, higher = more important)
 - `notes` (optional, max 2000)
 
@@ -119,6 +121,7 @@ Rules:
 - item list excludes soft-deleted items
 - URL without scheme is normalized by prepending `https://`
 - `priceCurrency` without `priceAmount` returns `400`
+- unsupported `priceCurrency` returns `400`
 
 ## Wishlist Sharing (public read-only)
 
@@ -126,7 +129,7 @@ Endpoints:
 
 - `POST /wishlists/{id}/share` -> returns `{ publicUrl }`
 - `DELETE /wishlists/{id}/share`
-- `GET /public/wishlists/{token}?cursor=...&limit=...&sort=priority|added` (no auth)
+- `GET /public/wishlists/{token}?cursor=...&limit=...&sort=priority|added|price&order=asc|desc` (no auth)
 
 Behavior:
 
@@ -139,8 +142,22 @@ Behavior:
 - sorting rules:
   - `sort=priority` (default): `priority DESC`, then `created_at_utc DESC`, then `id DESC`
   - `sort=added`: `created_at_utc DESC`, then `id DESC`
+  - `sort=price`: normalized price in wishlist `base_currency` (`order=asc|desc`), unknown prices at the end,
+    tie-breakers `created_at_utc DESC`, then `id DESC`
 - disabled/invalid share token returns `404` (not `403`)
 - public endpoint is rate-limited (`60 req/min`)
+
+## FX rates auto-update
+
+- sources:
+  - ECB daily XML: `https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml`
+  - CBR daily XML: `https://www.cbr.ru/scripts/XML_daily.asp`
+- canonical storage base: `EUR` (`fx_rates.base_currency = 'EUR'`)
+- updater runs on startup and then every `FxRates:RefreshIntervalHours` (default `6`)
+- updater uses PostgreSQL advisory lock (`hashtext('fx_rates_update')`) to avoid multi-instance races
+- on provider failures, API keeps using latest persisted rates
+- if rates are missing and `sort=price` is requested, public endpoint returns `400 validation_error`
+- in `Development`, fallback seeding can be enabled with `FxRates:SeedDevelopmentFallback=true`
 
 ## Themes v1 (personal)
 

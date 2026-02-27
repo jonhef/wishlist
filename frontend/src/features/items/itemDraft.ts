@@ -1,4 +1,5 @@
 import type { CreateItemRequest, Item, UpdateItemRequest } from "../../api/client";
+import { majorStringToMinor, minorToMajorString, normalizeCurrency } from "./currency";
 
 export type ItemDraft = {
   name: string;
@@ -17,10 +18,13 @@ export const emptyItemDraft: ItemDraft = {
 };
 
 export function itemDraftFromItem(item: Item): ItemDraft {
+  const normalizedCurrency = normalizeCurrency(item.priceCurrency);
   return {
     name: item.name,
     url: item.url ?? "",
-    priceAmount: item.priceAmount !== null ? String(item.priceAmount) : "",
+    priceAmount: item.priceAmount !== null && normalizedCurrency
+      ? minorToMajorString(item.priceAmount, normalizedCurrency)
+      : "",
     priceCurrency: item.priceCurrency ?? "",
     notes: item.notes ?? ""
   };
@@ -70,13 +74,12 @@ function resolvePriceFields(draft: ItemDraft): { priceAmount: number | null; pri
     };
   }
 
-  const parsedAmount = Number(draft.priceAmount);
-  const normalizedAmount = Number.isFinite(parsedAmount) ? parsedAmount : null;
-  const normalizedCurrency = draft.priceCurrency.trim().toUpperCase();
+  const normalizedCurrency = normalizeCurrency(draft.priceCurrency) ?? "USD";
+  const normalizedAmount = majorStringToMinor(draft.priceAmount, normalizedCurrency);
 
   return {
     priceAmount: normalizedAmount,
-    priceCurrency: normalizedCurrency || "USD"
+    priceCurrency: normalizedAmount !== null ? normalizedCurrency : null
   };
 }
 

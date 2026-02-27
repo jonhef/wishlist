@@ -2,6 +2,7 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Wishlist.Api.Domain.Entities;
+using Wishlist.Api.Features.Fx;
 using Wishlist.Api.Features.Sharing;
 using Wishlist.Api.Features.Themes;
 using Wishlist.Api.Infrastructure.Persistence;
@@ -14,7 +15,7 @@ public sealed class WishlistShareServiceTests
   public async Task RotateAndReadPublic_ReturnsWishlistWithVisibleItemsOnly()
   {
     await using var dbContext = CreateDbContext();
-    var service = new WishlistShareService(dbContext);
+    var service = new WishlistShareService(dbContext, new StubFxRatesService());
 
     var owner = CreateUser("share-owner@example.com");
     var wishlist = CreateWishlist(owner.Id, "Share me", "public description");
@@ -27,7 +28,7 @@ public sealed class WishlistShareServiceTests
         WishlistId = wishlist.Id,
         Name = "Visible",
         Url = "https://example.com/visible",
-        PriceAmount = 99.90m,
+        PriceAmount = 9990,
         PriceCurrency = "USD",
         Priority = 3,
         Notes = "note",
@@ -69,7 +70,7 @@ public sealed class WishlistShareServiceTests
   public async Task GetPublicByTokenAsync_CustomTheme_ReturnsThemeWithFallback()
   {
     await using var dbContext = CreateDbContext();
-    var service = new WishlistShareService(dbContext);
+    var service = new WishlistShareService(dbContext, new StubFxRatesService());
 
     var owner = CreateUser("share-owner-theme@example.com");
     var theme = new ThemeEntity
@@ -114,7 +115,7 @@ public sealed class WishlistShareServiceTests
   public async Task RotateAsync_ForeignWishlist_ReturnsForbidden()
   {
     await using var dbContext = CreateDbContext();
-    var service = new WishlistShareService(dbContext);
+    var service = new WishlistShareService(dbContext, new StubFxRatesService());
 
     var owner = CreateUser("share-owner2@example.com");
     var intruder = CreateUser("share-intruder2@example.com");
@@ -134,7 +135,7 @@ public sealed class WishlistShareServiceTests
   public async Task RotateAsync_RotatesToken_OldTokenBecomesInvalid()
   {
     await using var dbContext = CreateDbContext();
-    var service = new WishlistShareService(dbContext);
+    var service = new WishlistShareService(dbContext, new StubFxRatesService());
 
     var owner = CreateUser("share-owner3@example.com");
     var wishlist = CreateWishlist(owner.Id, "Rotate", null);
@@ -168,7 +169,7 @@ public sealed class WishlistShareServiceTests
   public async Task DisableAsync_MakesShareUnavailable()
   {
     await using var dbContext = CreateDbContext();
-    var service = new WishlistShareService(dbContext);
+    var service = new WishlistShareService(dbContext, new StubFxRatesService());
 
     var owner = CreateUser("share-owner4@example.com");
     var wishlist = CreateWishlist(owner.Id, "Disable", null);
@@ -195,7 +196,7 @@ public sealed class WishlistShareServiceTests
   public async Task GetPublicByTokenAsync_LimitAboveMax_ReturnsTwoPagesWithMax50()
   {
     await using var dbContext = CreateDbContext();
-    var service = new WishlistShareService(dbContext);
+    var service = new WishlistShareService(dbContext, new StubFxRatesService());
 
     var owner = CreateUser("share-owner-pagination@example.com");
     var wishlist = CreateWishlist(owner.Id, "Paginated", null);
@@ -247,7 +248,7 @@ public sealed class WishlistShareServiceTests
   public async Task GetPublicByTokenAsync_SupportsPriorityAndAddedSorting()
   {
     await using var dbContext = CreateDbContext();
-    var service = new WishlistShareService(dbContext);
+    var service = new WishlistShareService(dbContext, new StubFxRatesService());
 
     var owner = CreateUser("share-owner-sort@example.com");
     var wishlist = CreateWishlist(owner.Id, "Sorted", null);
@@ -320,6 +321,99 @@ public sealed class WishlistShareServiceTests
       addedResult.Value!.Items.Select(x => x.Name).ToArray());
   }
 
+  [Fact]
+  public async Task GetPublicByTokenAsync_SortsByPrice_WithAscDescAndUnknownAtEnd()
+  {
+    await using var dbContext = CreateDbContext();
+    var service = new WishlistShareService(dbContext, new StubFxRatesService(includeJpy: false));
+
+    var owner = CreateUser("share-owner-price-sort@example.com");
+    var wishlist = CreateWishlist(owner.Id, "Price sorted", null);
+    var baseTime = new DateTime(2026, 2, 1, 10, 0, 0, DateTimeKind.Utc);
+
+    dbContext.Users.Add(owner);
+    dbContext.Wishlists.Add(wishlist);
+    dbContext.WishItems.AddRange(
+      new WishItem
+      {
+        WishlistId = wishlist.Id,
+        Name = "USD-High",
+        PriceAmount = 1999,
+        PriceCurrency = "USD",
+        Priority = 100m,
+        CreatedAtUtc = baseTime.AddMinutes(1),
+        UpdatedAtUtc = baseTime.AddMinutes(1),
+        IsDeleted = false
+      },
+      new WishItem
+      {
+        WishlistId = wishlist.Id,
+        Name = "EUR-Mid",
+        PriceAmount = 1400,
+        PriceCurrency = "EUR",
+        Priority = 90m,
+        CreatedAtUtc = baseTime.AddMinutes(2),
+        UpdatedAtUtc = baseTime.AddMinutes(2),
+        IsDeleted = false
+      },
+      new WishItem
+      {
+        WishlistId = wishlist.Id,
+        Name = "USD-Low",
+        PriceAmount = 599,
+        PriceCurrency = "USD",
+        Priority = 80m,
+        CreatedAtUtc = baseTime.AddMinutes(3),
+        UpdatedAtUtc = baseTime.AddMinutes(3),
+        IsDeleted = false
+      },
+      new WishItem
+      {
+        WishlistId = wishlist.Id,
+        Name = "JPY-Unknown",
+        PriceAmount = 1200,
+        PriceCurrency = "JPY",
+        Priority = 70m,
+        CreatedAtUtc = baseTime.AddMinutes(4),
+        UpdatedAtUtc = baseTime.AddMinutes(4),
+        IsDeleted = false
+      },
+      new WishItem
+      {
+        WishlistId = wishlist.Id,
+        Name = "NoPrice",
+        Priority = 60m,
+        CreatedAtUtc = baseTime.AddMinutes(5),
+        UpdatedAtUtc = baseTime.AddMinutes(5),
+        IsDeleted = false
+      });
+    await dbContext.SaveChangesAsync();
+
+    var rotate = await service.RotateAsync(owner.Id, wishlist.Id, CancellationToken.None);
+    Assert.True(rotate.IsSuccess);
+
+    var ascResult = await service.GetPublicByTokenAsync(
+      rotate.Value!.Token,
+      new PublicWishlistListQuery(null, 50, PublicWishlistSort.price, PublicWishlistOrder.asc),
+      CancellationToken.None);
+    var descResult = await service.GetPublicByTokenAsync(
+      rotate.Value.Token,
+      new PublicWishlistListQuery(null, 50, PublicWishlistSort.price, PublicWishlistOrder.desc),
+      CancellationToken.None);
+
+    Assert.True(ascResult.IsSuccess);
+    Assert.NotNull(ascResult.Value);
+    Assert.Equal(
+      new[] { "USD-Low", "EUR-Mid", "USD-High", "NoPrice", "JPY-Unknown" },
+      ascResult.Value!.Items.Select(x => x.Name).ToArray());
+
+    Assert.True(descResult.IsSuccess);
+    Assert.NotNull(descResult.Value);
+    Assert.Equal(
+      new[] { "USD-High", "EUR-Mid", "USD-Low", "NoPrice", "JPY-Unknown" },
+      descResult.Value!.Items.Select(x => x.Name).ToArray());
+  }
+
   private static AppDbContext CreateDbContext()
   {
     var options = new DbContextOptionsBuilder<AppDbContext>()
@@ -355,5 +449,26 @@ public sealed class WishlistShareServiceTests
       UpdatedAtUtc = now,
       IsDeleted = false
     };
+  }
+
+  private sealed class StubFxRatesService(bool includeJpy = true) : IFxRatesService
+  {
+    public Task<FxRatesSnapshot?> GetLatestSnapshotAsync(CancellationToken cancellationToken)
+    {
+      var asOf = new DateOnly(2026, 2, 26);
+      var rates = new Dictionary<string, FxRateValue>(StringComparer.Ordinal)
+      {
+        [SupportedCurrencies.Eur] = new(1m, "TEST", asOf),
+        [SupportedCurrencies.Usd] = new(0.92m, "TEST", asOf),
+        [SupportedCurrencies.Rub] = new(0.0102m, "TEST", asOf)
+      };
+
+      if (includeJpy)
+      {
+        rates[SupportedCurrencies.Jpy] = new(0.0062m, "TEST", asOf);
+      }
+
+      return Task.FromResult<FxRatesSnapshot?>(new FxRatesSnapshot(asOf, rates));
+    }
   }
 }

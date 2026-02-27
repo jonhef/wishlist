@@ -6,7 +6,7 @@
 - EF Core provider: `Npgsql.EntityFrameworkCore.PostgreSQL`.
 - Primary connection string key: `ConnectionStrings:WishlistDb`.
 - Env override: `ConnectionStrings__WishlistDb`.
-- Default local docker host port: `55432` (`POSTGRES_HOST_PORT`).
+- Default local docker host port: `56432` (`POSTGRES_HOST_PORT`).
 
 ## Local run
 

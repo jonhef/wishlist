@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import type { Item } from "../../api/client";
 import type { ItemDraft } from "../items/itemDraft";
+import { formatMinorPrice, majorStringToMinor, normalizeCurrency } from "../items/currency";
 import { Button, Card } from "../../ui";
 import { smartAddStrings } from "./strings";
 
@@ -30,8 +31,8 @@ export function CompareCards({
   isBusy
 }: CompareCardsProps): JSX.Element {
   const primaryActionRef = useRef<HTMLButtonElement>(null);
-  const parsedDraftPrice = Number(newItemDraft.priceAmount);
-  const draftPriceAmount = Number.isFinite(parsedDraftPrice) ? parsedDraftPrice : null;
+  const draftCurrency = normalizeCurrency(newItemDraft.priceCurrency) ?? "USD";
+  const draftPriceAmount = newItemDraft.priceAmount ? majorStringToMinor(newItemDraft.priceAmount, draftCurrency) : null;
 
   useEffect(() => {
     primaryActionRef.current?.focus();
@@ -50,8 +51,8 @@ export function CompareCards({
           <h4>{newItemDraft.name || "Untitled"}</h4>
           <ItemSummary
             notes={newItemDraft.notes || null}
-            priceAmount={newItemDraft.priceAmount ? draftPriceAmount : null}
-            priceCurrency={newItemDraft.priceCurrency || null}
+            priceAmount={draftPriceAmount}
+            priceCurrency={draftCurrency}
             url={newItemDraft.url || null}
           />
         </Card>
@@ -123,9 +124,7 @@ function ItemSummary({ notes, url, priceAmount, priceCurrency }: ItemSummaryProp
         </a>
       ) : null}
       {priceAmount !== null ? (
-        <p className="muted">
-          {priceAmount} {priceCurrency ?? ""}
-        </p>
+        <p className="muted">{formatMinorPrice(priceAmount, priceCurrency)}</p>
       ) : null}
     </div>
   );

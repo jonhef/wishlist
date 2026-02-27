@@ -22,25 +22,36 @@ public static class PublicWishlistEndpoints
     string? cursor,
     int? limit,
     PublicWishlistSort sort,
+    PublicWishlistOrder? order,
     IWishlistShareService wishlistShareService,
     CancellationToken cancellationToken)
   {
-    if (!Enum.IsDefined(sort))
+    if (!Enum.IsDefined(sort) || (order.HasValue && !Enum.IsDefined(order.Value)))
     {
       return ApiProblem.Validation(
         httpContext,
-        ApiProblem.SingleFieldError("sort", "Sort must be one of: priority, added."),
+        ApiProblem.SingleFieldError("sort", "Sort/order values are invalid."),
         "Validation failed.");
     }
 
+    var resolvedOrder = order ?? PublicWishlistOrder.asc;
+
     var result = await wishlistShareService.GetPublicByTokenAsync(
       token,
-      new PublicWishlistListQuery(cursor, limit, sort),
+      new PublicWishlistListQuery(cursor, limit, sort, resolvedOrder),
       cancellationToken);
 
     if (!result.IsSuccess || result.Value is null)
     {
-      return ApiProblem.NotFound(httpContext, "Wishlist not found.");
+      return result.ErrorCode switch
+      {
+        WishlistShareErrorCodes.NotFound => ApiProblem.NotFound(httpContext, "Wishlist not found."),
+        WishlistShareErrorCodes.FxUnavailable => ApiProblem.Validation(
+          httpContext,
+          ApiProblem.SingleFieldError("sort", "Price sort is unavailable: exchange rates are missing."),
+          "Validation failed."),
+        _ => ApiProblem.NotFound(httpContext, "Wishlist not found.")
+      };
     }
 
     return TypedResults.Ok(result.Value);

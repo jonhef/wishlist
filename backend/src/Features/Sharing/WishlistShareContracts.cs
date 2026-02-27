@@ -7,19 +7,27 @@ public sealed record ShareRotationResult(string Token);
 public enum PublicWishlistSort
 {
   priority = 0,
-  added = 1
+  added = 1,
+  price = 2
+}
+
+public enum PublicWishlistOrder
+{
+  asc = 0,
+  desc = 1
 }
 
 public sealed record PublicWishlistListQuery(
   string? Cursor,
   int? Limit,
-  PublicWishlistSort Sort = PublicWishlistSort.priority);
+  PublicWishlistSort Sort = PublicWishlistSort.priority,
+  PublicWishlistOrder Order = PublicWishlistOrder.asc);
 
 public sealed record PublicWishlistItemDto(
   int Id,
   string Name,
   string? Url,
-  decimal? PriceAmount,
+  int? PriceAmount,
   string? PriceCurrency,
   string? Notes,
   DateTime CreatedAt);
@@ -44,4 +52,5 @@ public static class WishlistShareErrorCodes
 {
   public const string NotFound = "not_found";
   public const string Forbidden = "forbidden";
+  public const string FxUnavailable = "fx_unavailable";
 }

@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { ApiError, apiClient, type Item } from "../../api/client";
 import { AddItemModal } from "../../features/items/AddItemModal";
+import { formatMinorPrice, getMinorUnits, normalizeCurrency, supportedCurrencies } from "../../features/items/currency";
 import { buildPatchItemPayload, emptyItemDraft, itemDraftFromItem, type ItemDraft } from "../../features/items/itemDraft";
 import { removeItemFromItemsCache, updateItemInItemsCache, wishlistItemsQueryKey } from "../../features/items/itemsQueries";
 import { sortItems } from "../../features/items/sortItems";
@@ -171,9 +172,7 @@ export function WishlistDetailPage(): JSX.Element {
                 </a>
               ) : null}
               {item.priceAmount !== null ? (
-                <p className="muted">
-                  {item.priceAmount} {item.priceCurrency ?? ""}
-                </p>
+                <p className="muted">{formatMinorPrice(item.priceAmount, item.priceCurrency)}</p>
               ) : null}
               <p className="muted">Updated {new Date(item.updatedAtUtc).toLocaleString()}</p>
             </div>
@@ -247,6 +246,9 @@ type EditItemFormProps = {
 };
 
 function EditItemForm({ draft, onChange, onSubmit, formId }: EditItemFormProps): JSX.Element {
+  const selectedCurrency = normalizeCurrency(draft.priceCurrency);
+  const priceStep = selectedCurrency && getMinorUnits(selectedCurrency) === 0 ? "1" : "0.01";
+
   return (
     <form className="stack" id={formId} onSubmit={onSubmit}>
       <Input
@@ -272,17 +274,25 @@ function EditItemForm({ draft, onChange, onSubmit, formId }: EditItemFormProps):
           label="Price"
           min="0"
           onChange={(event) => onChange({ ...draft, priceAmount: event.target.value })}
-          step="0.01"
+          step={priceStep}
           type="number"
           value={draft.priceAmount}
         />
-
-        <Input
-          id={`${formId}-currency`}
-          label="Currency"
-          onChange={(event) => onChange({ ...draft, priceCurrency: event.target.value.toUpperCase() })}
-          value={draft.priceCurrency}
-        />
+        <label className="ui-field" htmlFor={`${formId}-currency`}>
+          <span className="ui-field-label">Currency</span>
+          <select
+            className="ui-input"
+            id={`${formId}-currency`}
+            onChange={(event) => onChange({ ...draft, priceCurrency: event.target.value })}
+            value={normalizeCurrency(draft.priceCurrency) ?? "USD"}
+          >
+            {supportedCurrencies.map((currency) => (
+              <option key={currency} value={currency}>
+                {currency}
+              </option>
+            ))}
+          </select>
+        </label>
       </div>
 
       <label className="ui-field" htmlFor={`${formId}-notes`}>
