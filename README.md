@@ -29,8 +29,6 @@ Services will be available at:
 - frontend: `http://localhost:5183`
 - backend health: `http://localhost:19080/health`
 - backend ready: `http://localhost:19080/health/ready`
-- nginx http: `http://localhost:8088`
-- nginx https: `https://localhost:8445`
 - postgres: `localhost:56432`
 
 ## Development commands
@@ -53,27 +51,17 @@ Services will be available at:
 - In compose, backend connects to the `postgres` service automatically.
 - For stage/prod, set `ConnectionStrings__WishlistDb` and `POSTGRES_*` via secrets/env, not via git.
 
-## Nginx + Cloudflare TLS
+## Global Nginx
 
-In compose, `nginx` is added, publishing host ports `8088/8445` by default (configurable via env) and proxying:
+Docker Compose no longer starts a local `nginx` container.
 
-- `/api/*` -> `backend:8080`
-- everything else -> `frontend:5173`
+Recommended production setup:
 
-TLS for `wishlist.jonhef.org` is loaded automatically at startup from the global Cloudflare directory.
+- use your global `nginx` on the host as the only public entry point
+- proxy `/api/*` -> `http://127.0.0.1:19080/`
+- proxy everything else -> `http://127.0.0.1:5183`
 
-Environment variables:
-
-- `CLOUDFLARE_GLOBAL_CONFIG_DIR` - host path to the cert/key directory (mounted into the container as `/etc/cloudflare`)
-- `CLOUDFLARE_CERT_FILE` - (optional) full path to the certificate inside the container
-- `CLOUDFLARE_KEY_FILE` - (optional) full path to the private key inside the container
-
-Launch example:
-
-```bash
-export CLOUDFLARE_GLOBAL_CONFIG_DIR=/opt/cloudflare
-docker compose up --build
-```
+The files in `infra/nginx/` are kept as reference templates for the host-level `nginx` setup, but they are not used by Docker Compose.
 
 ## Basic root scripts
 
