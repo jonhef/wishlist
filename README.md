@@ -26,9 +26,7 @@ docker compose up --build
 
 Services will be available at:
 
-- frontend: `http://localhost:5183`
-- backend health: `http://localhost:19080/health`
-- backend ready: `http://localhost:19080/health/ready`
+- frontend (nginx + static build): `http://localhost:5183`
 - postgres: `localhost:56432`
 
 ## Development commands
@@ -51,17 +49,15 @@ Services will be available at:
 - In compose, backend connects to the `postgres` service automatically.
 - For stage/prod, set `ConnectionStrings__WishlistDb` and `POSTGRES_*` via secrets/env, not via git.
 
-## Global Nginx
+## Nginx
 
-Docker Compose no longer starts a local `nginx` container.
+Default `docker compose up --build` now starts an `nginx` container for the frontend.
 
-Recommended production setup:
+- public entry point: `http://localhost:5183`
+- `nginx` serves the built `frontend/dist` folder
+- `nginx` proxies `/api/*` to the internal `backend` container
 
-- use your global `nginx` on the host as the only public entry point
-- proxy `/api/*` -> `http://127.0.0.1:19080/`
-- proxy everything else -> `http://127.0.0.1:5183`
-
-The files in `infra/nginx/` are kept as reference templates for the host-level `nginx` setup, but they are not used by Docker Compose.
+For live frontend development with Vite HMR, use `docker compose -f docker-compose.dev.yml up` instead.
 
 ## Basic root scripts
 

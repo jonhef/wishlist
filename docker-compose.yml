@@ -28,21 +28,15 @@ services:
       ASPNETCORE_ENVIRONMENT: Development
       APPLY_MIGRATIONS_ON_STARTUP: "true"
       ConnectionStrings__WishlistDb: Host=postgres;Port=5432;Database=${POSTGRES_DB:-wishlist};Username=${POSTGRES_USER:-wishlist};Password=${POSTGRES_PASSWORD:-wishlist_dev_password}
-    ports:
-      - "${BACKEND_HOST_PORT:-19080}:8080"
 
-  frontend:
+  nginx:
     build:
       context: .
       dockerfile: frontend/Dockerfile
-    environment:
-      HOST: 0.0.0.0
-      PORT: 5173
-      BACKEND_URL: http://backend:8080
     depends_on:
       - backend
     ports:
-      - "${FRONTEND_HOST_PORT:-5183}:5173"
+      - "${FRONTEND_HOST_PORT:-5183}:80"
 
 volumes:
   pgdata:
