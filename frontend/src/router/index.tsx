@@ -1,25 +1,62 @@
+import { Suspense, lazy } from "react";
 import { Navigate, createBrowserRouter } from "react-router-dom";
 import { AuthGuard } from "./AuthGuard";
 import { AppLayout } from "./AppLayout";
-import { LoginPage } from "../pages/Login/LoginPage";
-import { DashboardPage } from "../pages/Dashboard/DashboardPage";
-import { WishlistDetailPage } from "../pages/WishlistDetail/WishlistDetailPage";
-import { PublicWishlistPage } from "../pages/PublicWishlist/PublicWishlistPage";
-import { ThemeEditorPage } from "../pages/ThemeEditor/ThemeEditorPage";
-import { SmartAddPreviewPage } from "../pages/SmartAddPreview/SmartAddPreviewPage";
+
+const LoginPage = lazy(async () => {
+  const module = await import("../pages/Login/LoginPage");
+  return { default: module.LoginPage };
+});
+
+const DashboardPage = lazy(async () => {
+  const module = await import("../pages/Dashboard/DashboardPage");
+  return { default: module.DashboardPage };
+});
+
+const WishlistDetailPage = lazy(async () => {
+  const module = await import("../pages/WishlistDetail/WishlistDetailPage");
+  return { default: module.WishlistDetailPage };
+});
+
+const PublicWishlistPage = lazy(async () => {
+  const module = await import("../pages/PublicWishlist/PublicWishlistPage");
+  return { default: module.PublicWishlistPage };
+});
+
+const ThemeEditorPage = lazy(async () => {
+  const module = await import("../pages/ThemeEditor/ThemeEditorPage");
+  return { default: module.ThemeEditorPage };
+});
+
+const SmartAddPreviewPage = lazy(async () => {
+  const module = await import("../pages/SmartAddPreview/SmartAddPreviewPage");
+  return { default: module.SmartAddPreviewPage };
+});
+
+function withSuspense(element: JSX.Element): JSX.Element {
+  return (
+    <Suspense fallback={<RouteLoader />}>
+      {element}
+    </Suspense>
+  );
+}
+
+function RouteLoader(): JSX.Element {
+  return <div style={{ padding: "2rem", textAlign: "center" }}>Loading...</div>;
+}
 
 export const appRouter = createBrowserRouter([
   {
     path: "/login",
-    element: <LoginPage />
+    element: withSuspense(<LoginPage />)
   },
   {
     path: "/p/:token",
-    element: <PublicWishlistPage />
+    element: withSuspense(<PublicWishlistPage />)
   },
   {
     path: "/preview/smart-add",
-    element: <SmartAddPreviewPage />
+    element: withSuspense(<SmartAddPreviewPage />)
   },
   {
     path: "/",
@@ -35,15 +72,15 @@ export const appRouter = createBrowserRouter([
       },
       {
         path: "/dashboard",
-        element: <DashboardPage />
+        element: withSuspense(<DashboardPage />)
       },
       {
         path: "/wishlists/:wishlistId",
-        element: <WishlistDetailPage />
+        element: withSuspense(<WishlistDetailPage />)
       },
       {
         path: "/themes/editor",
-        element: <ThemeEditorPage />
+        element: withSuspense(<ThemeEditorPage />)
       }
     ]
   },
